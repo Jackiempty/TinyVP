@@ -1,9 +1,8 @@
 # Makefile
-
 # variables
-MODULE = tb_vector_add
+MODULE = vector_add
 RTL_DIR = ./rtl
-TB_DIR = ./tb
+CPP_DIR = ./cpp
 OBJ_DIR = ./obj_dir
 
 # Verilator Flags
@@ -11,27 +10,23 @@ OBJ_DIR = ./obj_dir
 # --trace: Enables waveform tracing
 # --timing: Supports delays in SystemVerilog (e.g., #5)
 # -j 0: Uses all available CPU cores for compilation
-VFLAGS = --binary -j 0 -Wall --trace --timing
+VFLAGS = --cc --exe --build -j 0 -Wall --trace \
+         -I$(CPP_DIR) \
+         --top-module $(MODULE)
 
-# Input Files
-SRCS = $(TB_DIR)/$(MODULE).sv $(RTL_DIR)/vector_add.sv
+# Source Files
+RTL_SRCS = $(RTL_DIR)/$(MODULE).sv
+CPP_SRCS = $(CPP_DIR)/main.cpp
 
-.PHONY: all run clean wave
+.PHONY: all run clean
 
 all: run
 
-# 1. Verilate & Compile
-compile:
-	verilator $(VFLAGS) --top $(MODULE) $(SRCS)
-
-# 2. Run Simulation
-run: compile
-	@echo "--- Running Simulation ---"
+run:
+	@echo "--- Verilating & Building ---"
+	verilator $(VFLAGS) $(RTL_SRCS) $(CPP_SRCS)
+	@echo "--- Running C++ Simulation ---"
 	$(OBJ_DIR)/V$(MODULE)
-
-# 3. View Waveform (Optional, requires GTKWave)
-wave:
-	gtkwave dump.vcd
 
 clean:
 	rm -rf $(OBJ_DIR) dump.vcd
