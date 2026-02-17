@@ -2,6 +2,7 @@
 #include <iostream>
 #include <vector>
 
+#include "shm.hpp"
 #include "vector_add_hal.hpp"
 
 int main(int argc, char** argv) {

@@ -111,7 +111,7 @@ static Packet makePacket(uint32_t seq) {
 
   // Use iostream to fetch the message and pack it to be sent by writer
   std::string message = {};
-  std::cout << "Enter a message: ";  // 稍微修改提示以便閱讀
+  std::cout << "Enter a message: ";
   std::getline(std::cin, message);
   std::vector<int> dataWord = packStringToInts(message);
   // std::cout << "finish enter\n";

@@ -1,4 +1,5 @@
 // cpp/vector_add_hal.hpp
+#pragma once
 
 #ifndef VECTOR_ADD_HAL_HPP
 #define VECTOR_ADD_HAL_HPP
@@ -14,6 +15,7 @@ class VectorAddHAL {
   private:
   Vvector_add* dut;
   vluint64_t   main_time = 0;
+  const int    VEC_LEN   = 4;
 
   void tick();
 

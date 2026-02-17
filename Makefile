@@ -2,8 +2,10 @@
 # variables
 MODULE = vector_add
 RTL_DIR = ./rtl
-CPP_DIR = ./cpp
+CPP_DIR = ./hal
 OBJ_DIR = ./obj_dir
+SHM_DIR = ./shm
+CPP_INCLUDES = -I$(abspath $(CPP_DIR)/include) -I$(abspath $(SHM_DIR))
 
 # Configuration for Format
 EXCLUDE_DIRS := build obj_dir
@@ -18,12 +20,12 @@ FIND_INCLUDES := -type f \( $(foreach ext,$(FORMAT_EXTS),-name "*.$(ext)" -o) -f
 # --timing: Supports delays in SystemVerilog (e.g., #5)
 # -j 0: Uses all available CPU cores for compilation
 VFLAGS = --cc --exe --build -j 0 -Wall --trace \
-         -I$(CPP_DIR) \
+         -CFLAGS "$(CPP_INCLUDES)" \
          --top-module $(MODULE)
 
 # Source Files
 RTL_SRCS = $(RTL_DIR)/$(MODULE).sv
-CPP_SRCS = $(CPP_DIR)/main.cpp
+CPP_SRCS = $(wildcard $(CPP_DIR)/src/*.cpp) $(wildcard $(SHM_DIR)/*.cpp)
 
 .PHONY: all run format clean
 

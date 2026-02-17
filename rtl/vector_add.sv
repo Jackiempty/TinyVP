@@ -5,7 +5,11 @@ module vector_add #(
 )(
     input  logic clk,
     input  logic rst_n,
-    
+
+    // --- Configuration Interface (CSR) ---
+    input  logic [31:0]             cfg_length,
+    input  logic                    cfg_start,
+
     // Input Interface
     input  logic                    in_valid,
     input  logic [DATA_WIDTH-1:0]   vec_a [VEC_LEN-1:0],
@@ -13,21 +17,55 @@ module vector_add #(
 
     // Output Interface
     output logic                    out_valid,
-    output logic [DATA_WIDTH-1:0]   vec_c [VEC_LEN-1:0]
+    output logic [DATA_WIDTH-1:0]   vec_c [VEC_LEN-1:0],
+
+    // --- Interrupt / Status ---
+    output logic                    irq_done,
+    output logic                    busy
 );
+    logic [31:0] counter;
+    logic        is_running;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            out_valid <= 1'b0;
-            for (int i = 0; i < VEC_LEN; i++) begin
-                vec_c[i] <= '0;
-            end
+            out_valid  <= 1'b0;
+            irq_done   <= 1'b0;
+            busy       <= 1'b0;
+            counter    <= 0;
+            is_running <= 0;
+            for (int i = 0; i < VEC_LEN; i++) vec_c[i] <= '0;
         end else begin
-            out_valid <= in_valid;
-            if (in_valid) begin
-                for (int i = 0; i < VEC_LEN; i++) begin
-                    vec_c[i] <= vec_a[i] + vec_b[i];
+            if (cfg_start && !busy) begin
+                busy       <= 1'b1;
+                is_running <= 1'b1;
+                counter    <= 0;
+                irq_done   <= 1'b0;
+                out_valid  <= 1'b0;
+            end 
+            else if (is_running) begin
+                if (in_valid) begin
+                    out_valid <= 1'b1;
+                    for (int i = 0; i < VEC_LEN; i++) begin
+                        vec_c[i] <= vec_a[i] + vec_b[i];
+                    end
+                    
+                    counter <= counter + 1;
+
+                    if (counter == cfg_length - 1) begin
+                        is_running <= 1'b0; 
+                    end
+                end else begin
+                    out_valid <= 1'b0;
                 end
+            end 
+            else if (busy && !is_running) begin
+                busy      <= 1'b0;
+                irq_done  <= 1'b1;
+                out_valid <= 1'b0;
+            end 
+            else begin
+                irq_done  <= 1'b0;
+                out_valid <= 1'b0;
             end
         end
     end
