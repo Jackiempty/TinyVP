@@ -1,6 +1,6 @@
 // shm/shm.hpp
-#ifndef SHMTESTER_HPP
-#define SHMTESTER_HPP
+#ifndef SHM_HPP
+#define SHM_HPP
 
 #include <cstdint>
 #include <mutex>
@@ -31,8 +31,11 @@ struct SharedMemorySegment {
   bool isFlagSet(int bit) const;
 };
 
+// ----------------------- Thread Helper Functions ---------------------
+void logLine(const std::string& s);
+
 // ------------------------- Thread Functions -------------------------
 void writerThread(SharedMemorySegment& shm, std::mutex& qmtx);
 void readerThread(SharedMemorySegment& shm, std::mutex& qmtx);
 
-#endif  // SHMTESTER_HPP
+#endif  // SHM_HPP

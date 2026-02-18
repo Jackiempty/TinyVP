@@ -78,11 +78,6 @@ static std::string unpackIntsToString(const std::vector<int>& words) {
   return std::string(buffer, 32);
 }
 
-static void logLine(const std::string& s) {
-  std::lock_guard<std::mutex> lk(g_log_mtx);
-  std::cout << s << std::endl;
-}
-
 static std::string packetToString(const Packet& pkt, const std::string& tag) {
   std::ostringstream oss;
   oss << "[" << tag << "] " << " id=" << pkt.packet_id;
@@ -156,6 +151,13 @@ void SharedMemorySegment::clearFlag(int bit) {
 }
 
 bool SharedMemorySegment::isFlagSet(int bit) const { return testBit(flags(), bit); }
+
+// ------------------------- Thread Helper Functions -----------------------
+
+void logLine(const std::string& s) {
+  std::lock_guard<std::mutex> lk(g_log_mtx);
+  std::cout << s << std::endl;
+}
 
 // ------------------------- Thread Implementation -------------------------
 
