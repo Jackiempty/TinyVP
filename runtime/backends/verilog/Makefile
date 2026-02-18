@@ -1,16 +1,16 @@
 PYTHON ?= python3
 CXX := g++
-NVCC := nvcc
+# NVCC := nvcc
 
 CXXFLAGS := -std=c++17 -shared -fPIC -Wall -Wextra
-NVCCFLAGS := -std=c++17 -Xcompiler -fPIC
+# NVCCFLAGS := -std=c++17 -Xcompiler -fPIC
 CPPFLAGS := $(shell $(PYTHON) -m pybind11 --includes)
-LDFLAGS := -L/usr/local/cuda/lib64 -lcudart
+# LDFLAGS := -L/usr/local/cuda/lib64 -lcudart
 
-LIB := aisrt_cuda$(shell $(PYTHON) -m pybind11 --extension-suffix)
+LIB := aisrt_rtl$(shell $(PYTHON) -m pybind11 --extension-suffix)
 PREFIX ?= $(shell $(PYTHON) -c "import site; print(site.getsitepackages()[0])")
 
-OBJS := vadd.o mmul.o mtrans.o binding.o
+OBJS := vadd.o binding.o
 
 PYTHON := $(shell which python3)
 TORCH_PATH := $(shell $(PYTHON) -c "import torch; print(torch.__path__[0])")
@@ -26,8 +26,8 @@ all: release
 release: CXXFLAGS += -O3 -DNDEBUG
 release: CXXFLAGS += $(INCLUDES)
 release: LDFLAGS += $(LIBS) -ltorch -ltorch_cpu -ltorch_cuda -ltorch_python -lc10 -Wl,-rpath,$(TORCH_PATH)/lib
-release: NVCCFLAGS += $(INCLUDES)
-release: NVCCFLAGS += -I$(PYTHON_INC)
+# release: NVCCFLAGS += $(INCLUDES)
+# release: NVCCFLAGS += -I$(PYTHON_INC)
 release: $(LIB)
 
 debug: CXXFLAGS += -g -O0 -DDEBUG
@@ -42,8 +42,8 @@ $(LIB): $(OBJS)
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
 
-%.o: %.cu
-	$(NVCC) $(NVCCFLAGS) -c -o $@ $<
+# %.o: %.cu
+# 	$(NVCC) $(NVCCFLAGS) -c -o $@ $<
 
 clean:
 	@$(RM) -v $(LIB) $(PREFIX)/$(LIB) $(OBJS)
