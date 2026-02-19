@@ -45,12 +45,12 @@ static inline uint64_t getAddr(const uint32_t* p) {
 
 static inline void setAddr(uint32_t* p, uint64_t a) { std::memcpy(p + PACKET_ADDR_INDEX, &a, sizeof(a)); }
 
-static inline uint32_t getData(const uint32_t* p, std::size_t j) {
-  return *(p + PACKET_DATA_OFFSET + static_cast<int>(j));
+static inline uint64_t getData(const uint32_t* p, std::size_t j) {
+  return *(p + PACKET_DATA_OFFSET + 2 * static_cast<int>(j));
 }
 
-static inline void setDataWord(uint32_t* p, int v, int data_index) {
-  *(p + PACKET_DATA_OFFSET + data_index) = static_cast<uint32_t>(v);
+static inline void setDataLong(uint32_t* p, uint64_t v, int data_index) {
+  *(p + PACKET_DATA_OFFSET + 2 * data_index) = static_cast<uint64_t>(v);
 }
 
 // Bit manipulation helpers

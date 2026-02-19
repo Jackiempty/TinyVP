@@ -9,9 +9,9 @@
 
 // ------------------------- Packet model -------------------------
 struct Packet {
-  uint32_t         packet_id = 0;
-  uint64_t         addr      = 0;
-  std::vector<int> data;
+  uint32_t              packet_id = 0;
+  uint64_t              addr      = 0;
+  std::vector<uint64_t> data_addr;
 };
 
 // ------------------------- SHM RAII wrapper -------------------------
@@ -25,10 +25,9 @@ struct SharedMemorySegment {
 
   uint32_t flags() const;
   void     writeFlags(uint32_t v);
-
-  void setFlag(int bit);
-  void clearFlag(int bit);
-  bool isFlagSet(int bit) const;
+  void     setFlag(int bit);
+  void     clearFlag(int bit);
+  bool     isFlagSet(int bit) const;
 };
 
 // ----------------------- Thread Helper Functions ---------------------
