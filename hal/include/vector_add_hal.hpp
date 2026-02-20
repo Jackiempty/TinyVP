@@ -35,7 +35,7 @@ class VectorAddHAL {
    * @param b Vector b
    * @return Vector c = a + b
    */
-  std::vector<uint32_t> compute(const std::vector<uint32_t>& a, const std::vector<uint32_t>& b);
+  void compute(const int32_t* a, const int32_t* b, int32_t* result, size_t total_size);
 };
 
 #endif  // VECTOR_ADD_HAL_HPP

@@ -9,10 +9,15 @@
 
 // ------------------------- Packet model -------------------------
 struct Packet {
-  uint32_t              packet_id = 0;
-  uint64_t              addr      = 0;
-  std::vector<uint64_t> data_addr;
+  uint32_t  vec_size = 0;
+  int32_t** vectors  = NULL;
 };
+
+uint32_t getVectorSize(const uint32_t* p);
+void     setVectorSize(uint32_t* p, uint32_t size);
+
+uint64_t getData(const uint32_t* p, std::size_t j);
+void     setData(uint32_t* p, int32_t v, int data_index);
 
 // ------------------------- SHM RAII wrapper -------------------------
 struct SharedMemorySegment {

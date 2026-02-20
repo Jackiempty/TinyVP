@@ -5,6 +5,8 @@
 #include "shm.hpp"
 #include "vector_add_hal.hpp"
 
+static VectorAddHAL hal;
+
 int main(int argc, char** argv) {
   Verilated::commandArgs(argc, argv);
   VectorAddHAL accelerator;
@@ -22,21 +24,19 @@ int main(int argc, char** argv) {
     shm_h2a.setFlag(READY_BIT);
     while (!shm_h2a.isFlagSet(VALID_BIT)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
     logLine("[H2A] VALID observed on '" + shm_h2a.name + "'");
-    Packet pkt{};
-    pkt.packet_id = getPacketId(req_ptr);
+    uint32_t vec_size = getVectorSize(req_ptr);
 
     // No longer ready during the transfer
     shm_h2a.clearFlag(READY_BIT);
 
     // Decode Packet
-    pkt.addr = getAddr(req_ptr);
-    std::vector<uint32_t>*vec_a, *vec_b;
-    vec_a = getData(req_ptr, 0);
-    vec_b = getData(req_ptr, 1);
+    int32_t* vec_a = getData(req_ptr, 0);
+    int32_t* vec_b = getData(req_ptr, 1);
 
     // --- Compute ---
-    std::vector<int>* vec_c = vec_b;
-    *vec_c                  = hal.compute(vec_a, vec_b);
+    int32_t* vec_c;
+    hal.reset();
+    hal.compute(vec_a, vec_b, vec_c, vec_size);
 
     // Signal ACK to the shm_h2a
     shm_h2a.setFlag(ACK_BIT);
@@ -53,9 +53,8 @@ int main(int argc, char** argv) {
     while (!shm_a2h.isFlagSet(READY_BIT)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
     logLine("[A2H] READY observed on '" + shm_a2h.name + "'");
 
-    // Serialize Result
-    setPacketId(resp_ptr, getPacketId(req_ptr));  // Keep same ID
-    setDataLong(resp_ptr, (uint64_t)vec_c, 1);
+    // Serialize Result, write result back to *vec_a
+    setData(resp_ptr, *vec_c, 0);
 
     // Signal VALID and wait for ACK
     shm_a2h.setFlag(VALID_BIT);

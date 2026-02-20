@@ -19,9 +19,8 @@
 
 // ------------------------- Protocol / layout constants -------------------------
 namespace {
-constexpr int HEADER_PACKET_ID_INDEX = 1;
-constexpr int PACKET_ADDR_INDEX      = 2;
-constexpr int PACKET_DATA_OFFSET     = 4;
+constexpr int PACKET_VEC_SIZE_OFFSET = 1;
+constexpr int PACKET_DATA_OFFSET     = 2;
 
 constexpr std::size_t SHM_SIZE = 8192;  // bytes
 
@@ -32,27 +31,15 @@ constexpr int ACK_BIT   = 29;
 std::mutex g_log_mtx;
 }  // namespace
 
+uint32_t getVectorSize(const uint32_t* p) { return *(p + PACKET_VEC_SIZE_OFFSET); }
+void     setVectorSize(uint32_t* p, uint32_t size) { *(p + PACKET_VEC_SIZE_OFFSET) = size; }
+
+uint64_t getData(const uint32_t* p, std::size_t j) { return *(p + PACKET_DATA_OFFSET + 2 * static_cast<uint32_t>(j)); }
+void     setData(uint32_t* p, int32_t v, int data_index) {
+  *(p + PACKET_DATA_OFFSET + 2 * data_index) = static_cast<int32_t>(v);
+}
+
 // ------------------------- Helper Functions (Internal) -------------------------
-
-static inline uint32_t getPacketId(const uint32_t* p) { return *(p + HEADER_PACKET_ID_INDEX); }
-static inline void     setPacketId(uint32_t* p, uint32_t id) { *(p + HEADER_PACKET_ID_INDEX) = id; }
-
-static inline uint64_t getAddr(const uint32_t* p) {
-  uint64_t addr = 0;
-  std::memcpy(&addr, p + PACKET_ADDR_INDEX, sizeof(addr));
-  return addr;
-}
-
-static inline void setAddr(uint32_t* p, uint64_t a) { std::memcpy(p + PACKET_ADDR_INDEX, &a, sizeof(a)); }
-
-static inline uint64_t getData(const uint32_t* p, std::size_t j) {
-  return *(p + PACKET_DATA_OFFSET + 2 * static_cast<int>(j));
-}
-
-static inline void setDataLong(uint32_t* p, uint64_t v, int data_index) {
-  *(p + PACKET_DATA_OFFSET + 2 * data_index) = static_cast<uint64_t>(v);
-}
-
 // Bit manipulation helpers
 static inline bool testBit(uint32_t v, int bit) { return (v >> bit) & 1u; }
 static inline void setBit(uint32_t& v, int bit) { v |= (1u << bit); }
@@ -76,44 +63,6 @@ static std::string unpackIntsToString(const std::vector<int>& words) {
   const int count      = std::min<int>(8, (int)words.size());
   for (int i = 0; i < count; ++i) { std::memcpy(buffer + i * 4, &words[i], 4); }
   return std::string(buffer, 32);
-}
-
-static std::string packetToString(const Packet& pkt, const std::string& tag) {
-  std::ostringstream oss;
-  oss << "[" << tag << "] " << " id=" << pkt.packet_id;
-
-  oss << "\n  - payload: " << "addr=0x" << std::hex << std::setw(8) << std::setfill('0') << pkt.addr;
-
-  oss << " data=[";
-  const auto& dp      = pkt.data;
-  std::string message = unpackIntsToString(dp);
-  oss << message;
-  oss << "]";
-
-  return oss.str();
-}
-
-static Packet makePacket(uint32_t seq) {
-  static std::mt19937_64                  gen{std::random_device{}()};
-  std::uniform_int_distribution<uint64_t> addr_d(0x1000, 0xFFFFF0);
-  Packet                                  pkt{};
-
-  std::string message = {};
-  {
-    std::lock_guard<std::mutex> lk(g_log_mtx);
-    std::cout << "Enter a message: " << std::flush;
-  }
-  std::getline(std::cin, message);
-
-  std::vector<int> dataWord = packStringToInts(message);
-  // std::cout << "finish enter\n"; // Removed distinct logging for cleaner output
-
-  pkt.packet_id = seq;
-  pkt.addr      = (addr_d(gen) & ~0xFULL);  // 16B align for readability
-  pkt.data.resize(dataWord.size());
-  for (int j = 0; j < 8; ++j) pkt.data[j] = dataWord[j];
-
-  return pkt;
 }
 
 // ------------------------- SharedMemorySegment Implementation -------------------------
