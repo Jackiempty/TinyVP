@@ -8,6 +8,8 @@
 
 namespace py = pybind11;
 
+static RTLBackend backend;
+
 /**
  * @brief Wrapper for vector addition targeting the custom RTL backend.
  *
@@ -38,7 +40,7 @@ torch::Tensor vadd_wrapper(torch::Tensor in1, torch::Tensor in2) {
   int32_t*      out_ptr = output.data_ptr<int32_t>();
 
   // 4. Dispatch the computation to the hardware abstraction layer
-  vadd(in1_ptr, in2_ptr, out_ptr, size);
+  backend.vadd(in1_ptr, in2_ptr, out_ptr, size);
 
   return output;
 }

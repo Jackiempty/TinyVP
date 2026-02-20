@@ -7,17 +7,25 @@
 #include <string>
 #include <vector>
 
+constexpr uint32_t MAX_VEC_SIZE = 512;
+
 // ------------------------- Packet model -------------------------
 struct Packet {
-  uint32_t  vec_size = 0;
-  int32_t** vectors  = NULL;
+  uint32_t vec_size;
+  int32_t  vec_a[MAX_VEC_SIZE];
+  int32_t  vec_b[MAX_VEC_SIZE];
 };
 
+// ------------------------- API Functions -------------------------
 uint32_t getVectorSize(const uint32_t* p);
 void     setVectorSize(uint32_t* p, uint32_t size);
 
-uint64_t getData(const uint32_t* p, std::size_t j);
-void     setData(uint32_t* p, int32_t v, int data_index);
+// vec_id: 0 for A & C, 1 for B
+int32_t getData(const uint32_t* p, int vec_id, std::size_t index);
+void    setData(uint32_t* p, int32_t v, int vec_id, std::size_t index);
+
+void getVectorData(const uint32_t* p, int32_t* dst, int vec_id, uint32_t size);
+void setVectorData(uint32_t* p, const int32_t* src, int vec_id, uint32_t size);
 
 // ------------------------- SHM RAII wrapper -------------------------
 struct SharedMemorySegment {
@@ -37,9 +45,5 @@ struct SharedMemorySegment {
 
 // ----------------------- Thread Helper Functions ---------------------
 void logLine(const std::string& s);
-
-// ------------------------- Thread Functions -------------------------
-void writerThread(SharedMemorySegment& shm, std::mutex& qmtx);
-void readerThread(SharedMemorySegment& shm, std::mutex& qmtx);
 
 #endif  // SHM_HPP

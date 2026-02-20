@@ -31,12 +31,33 @@ constexpr int ACK_BIT   = 29;
 std::mutex g_log_mtx;
 }  // namespace
 
-uint32_t getVectorSize(const uint32_t* p) { return *(p + PACKET_VEC_SIZE_OFFSET); }
-void     setVectorSize(uint32_t* p, uint32_t size) { *(p + PACKET_VEC_SIZE_OFFSET) = size; }
+uint32_t getVectorSize(const uint32_t* p) { return p[PACKET_VEC_SIZE_OFFSET]; }
 
-uint64_t getData(const uint32_t* p, std::size_t j) { return *(p + PACKET_DATA_OFFSET + 2 * static_cast<uint32_t>(j)); }
-void     setData(uint32_t* p, int32_t v, int data_index) {
-  *(p + PACKET_DATA_OFFSET + 2 * data_index) = static_cast<int32_t>(v);
+void setVectorSize(uint32_t* p, uint32_t size) {
+  if (size > MAX_VEC_SIZE) size = MAX_VEC_SIZE;
+  p[PACKET_VEC_SIZE_OFFSET] = size;
+}
+
+int32_t getData(const uint32_t* p, int vec_id, std::size_t index) {
+  int offset = PACKET_DATA_OFFSET + (vec_id * MAX_VEC_SIZE) + index;
+  return static_cast<int32_t>(p[offset]);
+}
+
+void setData(uint32_t* p, int32_t v, int vec_id, std::size_t index) {
+  int offset = PACKET_DATA_OFFSET + (vec_id * MAX_VEC_SIZE) + index;
+  p[offset]  = static_cast<uint32_t>(v);
+}
+
+void getVectorData(const uint32_t* p, int32_t* dst, int vec_id, uint32_t size) {
+  if (size > MAX_VEC_SIZE) size = MAX_VEC_SIZE;
+  int offset = PACKET_DATA_OFFSET + (vec_id * MAX_VEC_SIZE);
+  std::memcpy(dst, &p[offset], size * sizeof(int32_t));
+}
+
+void setVectorData(uint32_t* p, const int32_t* src, int vec_id, uint32_t size) {
+  if (size > MAX_VEC_SIZE) size = MAX_VEC_SIZE;
+  int offset = PACKET_DATA_OFFSET + (vec_id * MAX_VEC_SIZE);
+  std::memcpy(const_cast<uint32_t*>(&p[offset]), src, size * sizeof(int32_t));
 }
 
 // ------------------------- Helper Functions (Internal) -------------------------
@@ -106,84 +127,4 @@ bool SharedMemorySegment::isFlagSet(int bit) const { return testBit(flags(), bit
 void logLine(const std::string& s) {
   std::lock_guard<std::mutex> lk(g_log_mtx);
   std::cout << s << std::endl;
-}
-
-// ------------------------- Thread Implementation -------------------------
-
-void writerThread(SharedMemorySegment& shm, std::mutex& /*qmtx*/) {
-  auto* ptr   = shm.base;
-  int   count = 0;
-  while (true) {
-    // make Packet each round
-    Packet pkt = makePacket(count);
-    count++;
-
-    // Wait until the receiver is READY
-    logLine("[Writer] waiting READY on '" + shm.name + "'");
-    while (!shm.isFlagSet(READY_BIT)) { std::this_thread::sleep_for(std::chrono::milliseconds(500)); }
-    logLine("[Writer] READY observed on '" + shm.name + "'");
-
-    // Serialize header
-    setPacketId(ptr, pkt.packet_id);
-
-    // Serialize payloads and data
-    setAddr(ptr, pkt.addr);
-    for (int j = 0; j < 8; ++j) {
-      const int value = pkt.data[j];
-      setDataWord(ptr, value, j);
-    }
-
-    // Signal VALID and wait for ACK
-    shm.setFlag(VALID_BIT);
-    logLine(packetToString(pkt, "Writer Sent (VALID set)"));
-    logLine("[Writer] waiting ACK on '" + shm.name + "'");
-    while (!shm.isFlagSet(ACK_BIT)) { std::this_thread::sleep_for(std::chrono::milliseconds(500)); }
-
-    // Clear both flags
-    shm.clearFlag(ACK_BIT);
-    shm.clearFlag(VALID_BIT);
-    logLine("[Writer] ACK received, VALID cleared on '" + shm.name + "'");
-    logLine("---- Writer cycle complete ----\n");
-    // Small delay to avoid busy looping too fast
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  }
-}
-
-void readerThread(SharedMemorySegment& shm, std::mutex& /*qmtx*/) {
-  auto* ptr = shm.base;
-
-  while (true) {
-    // Wait for VALID
-    logLine("[Reader] waiting VALID on '" + shm.name + "'");
-    while (!shm.isFlagSet(VALID_BIT)) {
-      shm.setFlag(READY_BIT);
-      std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    }
-    logLine("[Reader] VALID observed on '" + shm.name + "'");
-
-    // Read header
-    Packet pkt{};
-    pkt.packet_id = getPacketId(ptr);
-
-    // No longer ready during the transfer
-    shm.clearFlag(READY_BIT);
-
-    // Read payloads and data
-    pkt.addr = getAddr(ptr);
-    std::vector<int> data;
-    for (int j = 0; j < 8; ++j) { data.push_back(static_cast<int>(getData(ptr, j))); }
-    pkt.data = data;
-
-    // Signal ACK to the shm
-    shm.setFlag(ACK_BIT);
-    logLine(packetToString(pkt, "Reader Received (ACK set)"));
-
-    // Wait until shm clears ACK
-    logLine("[Reader] waiting ACK clear on '" + shm.name + "'");
-    while (shm.isFlagSet(ACK_BIT)) { std::this_thread::sleep_for(std::chrono::milliseconds(100)); }
-    logLine("[Reader] ACK cleared on '" + shm.name + "'");
-    logLine("---- Reader cycle complete ----\n");
-    // Small delay to avoid busy looping too fast
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  }
 }
