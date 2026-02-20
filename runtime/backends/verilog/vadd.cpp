@@ -1,7 +1,9 @@
 // runtime/backends/verilog/vadd.cpp
 #include "vadd.hpp"
 
-RTLBackend::RTLBackend() : shm_h2a("shm_h2a", true), shm_a2h("shm_a2h", true) { logLine("[Host] SHM Initialized."); }
+RTLBackend::RTLBackend() : shm_h2a("shm_h2a", true, true), shm_a2h("shm_a2h", true, true) {
+  logLine("[Host] SHM Initialized.");
+}
 
 void RTLBackend::vadd(const int32_t* vec_a, const int32_t* vec_b, int32_t* vec_c, uint32_t vec_size) {
   auto* req_ptr  = shm_h2a.base;

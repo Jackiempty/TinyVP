@@ -44,14 +44,9 @@ void setVectorData(Packet* p, const int32_t* src, int vec_id, uint32_t size) {
   std::memcpy(dst, src, size * sizeof(int32_t));
 }
 
-// ------------------------- Helper Functions (Internal) -------------------------
-// Bit manipulation helpers
-static inline bool testBit(uint32_t v, int bit) { return (v >> bit) & 1u; }
-static inline void setBit(uint32_t& v, int bit) { v |= (1u << bit); }
-static inline void clrBit(uint32_t& v, int bit) { v &= ~(1u << bit); }
-
 // ------------------------- SharedMemorySegment Implementation -------------------------
-SharedMemorySegment::SharedMemorySegment(const std::string& shm_name, bool clear) : name(shm_name) {
+SharedMemorySegment::SharedMemorySegment(const std::string& shm_name, bool clear, bool unlink)
+    : name(shm_name), unlink_on_destroy(unlink) {
   fd = shm_open(name.c_str(), O_CREAT | O_RDWR, 0666);
   if (fd < 0) throw std::runtime_error("shm_open failed: " + name);
 
@@ -62,30 +57,31 @@ SharedMemorySegment::SharedMemorySegment(const std::string& shm_name, bool clear
 
   base = static_cast<Packet*>(mapped);
 
-  if (clear) std::memset(base, 0, SHM_SIZE);
+  if (clear) {
+    std::memset(base, 0, SHM_SIZE);
+    base->flags.store(0, std::memory_order_relaxed);
+  }
 }
 
 SharedMemorySegment::~SharedMemorySegment() {
   if (base) munmap(base, SHM_SIZE);
   if (fd >= 0) close(fd);
+  if (unlink_on_destroy) { shm_unlink(name.c_str()); }
 }
 
 uint32_t SharedMemorySegment::flags() const { return base->flags; }
-void     SharedMemorySegment::writeFlags(uint32_t v) { base->flags = v; }
 
-void SharedMemorySegment::setFlag(int bit) {
-  auto v = flags();
-  setBit(v, bit);
-  writeFlags(v);
-}
+void SharedMemorySegment::writeFlags(uint32_t v) { base->flags = v; }
 
-void SharedMemorySegment::clearFlag(int bit) {
-  auto v = flags();
-  clrBit(v, bit);
-  writeFlags(v);
-}
+uint32_t SharedMemorySegment::flags() const { return base->flags.load(std::memory_order_acquire); }
 
-bool SharedMemorySegment::isFlagSet(int bit) const { return testBit(flags(), bit); }
+void SharedMemorySegment::writeFlags(uint32_t v) { base->flags.store(v, std::memory_order_release); }
+
+void SharedMemorySegment::setFlag(int bit) { base->flags.fetch_or(1u << bit, std::memory_order_acq_rel); }
+
+void SharedMemorySegment::clearFlag(int bit) { base->flags.fetch_and(~(1u << bit), std::memory_order_acq_rel); }
+
+bool SharedMemorySegment::isFlagSet(int bit) const { return (flags() >> bit) & 1u; }
 
 // ------------------------- Thread Helper Functions -----------------------
 void logLine(const std::string& s) {

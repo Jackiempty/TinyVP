@@ -2,6 +2,7 @@
 #ifndef SHM_HPP
 #define SHM_HPP
 
+#include <atomic>
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -11,10 +12,10 @@ constexpr uint32_t MAX_VEC_SIZE = 512;
 
 // ------------------------- Packet model -------------------------
 struct Packet {
-  uint32_t flags;
-  uint32_t vec_size;
-  int32_t  vec_a[MAX_VEC_SIZE];
-  int32_t  vec_b[MAX_VEC_SIZE];
+  std::atomic<uint32_t> flags;
+  uint32_t              vec_size;
+  int32_t               vec_a[MAX_VEC_SIZE];
+  int32_t               vec_b[MAX_VEC_SIZE];
 
   static constexpr int READY_BIT = 31;
   static constexpr int VALID_BIT = 30;
@@ -37,10 +38,11 @@ struct SharedMemorySegment {
   std::string name;
   int         fd   = -1;
   Packet*     base = nullptr;
+  bool        unlink_on_destroy;
 
   static constexpr std::size_t SHM_SIZE = sizeof(Packet);
 
-  explicit SharedMemorySegment(const std::string& shm_name, bool clear = true);
+  explicit SharedMemorySegment(const std::string& shm_name, bool clear = true, bool unlink = false);
   ~SharedMemorySegment();
 
   uint32_t flags() const;
