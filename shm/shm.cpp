@@ -69,10 +69,6 @@ SharedMemorySegment::~SharedMemorySegment() {
   if (unlink_on_destroy) { shm_unlink(name.c_str()); }
 }
 
-uint32_t SharedMemorySegment::flags() const { return base->flags; }
-
-void SharedMemorySegment::writeFlags(uint32_t v) { base->flags = v; }
-
 uint32_t SharedMemorySegment::flags() const { return base->flags.load(std::memory_order_acquire); }
 
 void SharedMemorySegment::writeFlags(uint32_t v) { base->flags.store(v, std::memory_order_release); }

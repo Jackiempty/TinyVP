@@ -7,6 +7,7 @@
 
 static VectorAddHAL hal;
 
+// [Yet] Expand Makefile to drive the whole project
 int main(int argc, char** argv) {
   Verilated::commandArgs(argc, argv);
   VectorAddHAL accelerator;
@@ -81,3 +82,33 @@ int main(int argc, char** argv) {
 
   return 0;
 }
+
+// [OK] test_main that validate whether the compilation flow works and whether the result is right
+/*
+int test_main(int argc, char** argv) {
+  Verilated::commandArgs(argc, argv);
+
+  std::cout << "--- [C++] Starting Simulation ---" << std::endl;
+  int32_t host_a[] = {10, 20, 30, 40};
+  int32_t host_b[] = {1, 2, 3, 4};
+  int32_t host_c[4];
+  hal.compute(host_a, host_b, host_c, 4);
+
+  bool pass = true;
+  for (int i = 0; i < 4; i++) {
+    int32_t expected = host_a[i] + host_b[i];
+    std::cout << "Index " << i << ": " << host_a[i] << " + " << host_b[i] << " = " << host_c[i]
+              << " (Expected: " << expected << ")" << std::endl;
+
+    if (host_c[i] != expected) pass = false;
+  }
+
+  if (pass) {
+    std::cout << "--- [PASS] Hardware matches Software! ---" << std::endl;
+  } else {
+    std::cout << "--- [FAIL] Mismatch detected! ---" << std::endl;
+  }
+
+  return 0;
+}
+*/
