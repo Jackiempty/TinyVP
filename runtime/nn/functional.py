@@ -4,11 +4,8 @@ from aisrt_cpu import (
     linear as linear_impl,
 )
 
-from aisrt_cuda import (
+from aisrt_rtl import (
     vadd as vadd_impl,
-    qadd as qadd_impl,
-    mmul as mmul_impl,
-    mtrans as mtrans_impl,
 )
 
 
@@ -22,38 +19,24 @@ def linear(
     return output
 
 
-def add(input1: torch.Tensor, input2: torch.Tensor) -> torch.Tensor:
-    output = vadd_impl(input1, input2)
-    return output
-
-
-def qadd(
-    input1: torch.Tensor, input2: torch.Tensor, scale: float = 1.0, zero_point: int = 0
-) -> torch.Tensor:
-    output = qadd_impl(input1, input2, scale, zero_point)
-    return output
-
-
-def matmul(input1: torch.Tensor, input2: torch.Tensor) -> torch.Tensor:
-    if input1.dim() != 2 or input2.dim() != 2:
-        raise NotImplementedError(
-            f"matmul only supports 2D matrix x 2D matrix. Got {input1.dim()}D x {input2.dim()}D."
+def vadd(input1: torch.Tensor, input2: torch.Tensor) -> torch.Tensor:
+    if input1.dtype != torch.int32 or input2.dtype != torch.int32:
+        raise TypeError(
+            "Hardware accelerator currently only supports torch.int32 tensors."
         )
-    if input1.size(1) != input2.size(0):
+    if input1.size() != input2.size():
         raise ValueError(
-            f"Incompatible shapes for matmul: {tuple(input1.shape)} and {tuple(input2.shape)}."
+            f"Tensor sizes do not match: {input1.size()} vs {input2.size()}"
         )
-    output = mmul_impl(input1, input2)
+    if input1.numel() > 512:
+        raise ValueError(
+            f"Tensor size {input1.numel()} exceeds hardware MAX_VEC_SIZE (512)."
+        )
+
+    input1_contig = input1.contiguous()
+    input2_contig = input2.contiguous()
+    output = vadd_impl(input1_contig, input2_contig)
     return output
 
 
-def transpose(input: torch.Tensor, dim0: int, dim1: int) -> torch.Tensor:
-    if input.dim() != 2:
-        raise NotImplementedError(
-            f"transpose only supports 2D matrices. Got {input.dim()}D tensor."
-        )
-    output = mtrans_impl(input)
-    return output
-
-
-__all__ = ["linear", "add", "qadd", "matmul", "transpose"]
+__all__ = ["linear", "vadd"]

@@ -12,12 +12,12 @@ module vector_add #(
 
     // Input Interface
     input  logic                    in_valid,
-    input  logic [DATA_WIDTH-1:0]   vec_a [VEC_LEN-1:0],
-    input  logic [DATA_WIDTH-1:0]   vec_b [VEC_LEN-1:0],
+    input  logic signed [DATA_WIDTH-1:0]   vec_a [VEC_LEN-1:0],
+    input  logic signed [DATA_WIDTH-1:0]   vec_b [VEC_LEN-1:0],
 
     // Output Interface
     output logic                    out_valid,
-    output logic [DATA_WIDTH-1:0]   vec_c [VEC_LEN-1:0],
+    output logic signed [DATA_WIDTH-1:0]   vec_c [VEC_LEN-1:0],
 
     // --- Interrupt / Status ---
     output logic                    irq_done,

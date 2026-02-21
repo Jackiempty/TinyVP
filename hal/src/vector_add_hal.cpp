@@ -27,18 +27,14 @@ void VectorAddHAL::reset() {
   tick();
 }
 
-std::vector<uint32_t> VectorAddHAL::compute(const std::vector<uint32_t>& a, const std::vector<uint32_t>& b) {
-  if (a.size() != b.size()) return {};
-  size_t   total_size  = a.size();
+void VectorAddHAL::compute(const int32_t* a, const int32_t* b, int32_t* result, size_t total_size) {
+  if (total_size == 0 || a == nullptr || b == nullptr || result == nullptr) return;
   uint32_t batch_count = (total_size + VEC_LEN - 1) / VEC_LEN;
 
   dut->cfg_length = batch_count;
   dut->cfg_start  = 1;
   tick();
   dut->cfg_start = 0;
-
-  std::vector<uint32_t> result;
-  result.reserve(total_size);
 
   size_t sent_idx       = 0;
   size_t received_count = 0;
@@ -64,7 +60,7 @@ std::vector<uint32_t> VectorAddHAL::compute(const std::vector<uint32_t>& a, cons
 
     if (dut->out_valid) {
       for (int i = 0; i < VEC_LEN; i++) {
-        if (result.size() < total_size) { result.push_back(dut->vec_c[i]); }
+        if (received_count < total_size) { result[received_count++] = dut->vec_c[i]; }
       }
     }
 
@@ -76,11 +72,9 @@ std::vector<uint32_t> VectorAddHAL::compute(const std::vector<uint32_t>& a, cons
 
   if (dut->out_valid) {
     for (int i = 0; i < VEC_LEN; i++) {
-      if (result.size() < total_size) { result.push_back(dut->vec_c[i]); }
+      if (received_count < total_size) { result[received_count++] = dut->vec_c[i]; }
     }
   }
 
   tick();
-
-  return result;
 }
