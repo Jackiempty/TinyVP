@@ -7,13 +7,13 @@
 
 static VectorAddHAL hal;
 
-// [Yet] Expand Makefile to drive the whole project
+// [OK] Expand Makefile to drive the whole project
 int main(int argc, char** argv) {
   Verilated::commandArgs(argc, argv);
   VectorAddHAL accelerator;
 
-  SharedMemorySegment shm_h2a("shm_h2a", false);
-  SharedMemorySegment shm_a2h("shm_a2h", false);
+  SharedMemorySegment shm_h2a("shm_h2a", true, true);
+  SharedMemorySegment shm_a2h("shm_a2h", true, true);
 
   auto* req_ptr  = shm_h2a.base;
   auto* resp_ptr = shm_a2h.base;
