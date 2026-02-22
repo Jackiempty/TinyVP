@@ -1,7 +1,7 @@
 # examples/test_vadd.py
 import time
 import torch
-import python.nn.functional as F
+import aisrt.nn.functional as F
 
 GREEN = "\033[92m"
 RED = "\033[91m"

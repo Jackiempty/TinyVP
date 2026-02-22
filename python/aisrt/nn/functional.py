@@ -1,12 +1,8 @@
+# python/aisrt/nn/functional.py
 import torch
 
-from aisrt_cpu import (
-    linear as linear_impl,
-)
-
-from aisrt_rtl import (
-    vadd as vadd_impl,
-)
+from ..backends.aisrt_cpu import linear as linear_impl
+from ..backends.aisrt_rtl import vadd as vadd_impl
 
 
 def linear(

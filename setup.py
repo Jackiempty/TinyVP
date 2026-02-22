@@ -1,27 +1,27 @@
 # setup.py
 import os
-from setuptools import setup, Extension
+from setuptools import setup, find_packages
 from torch.utils.cpp_extension import BuildExtension, CppExtension
 
 project_root = os.path.dirname(os.path.abspath(__file__))
 
 ext_modules = [
     CppExtension(
-        name="aisrt_rtl",
+        name="aisrt.backends.aisrt_rtl",
         sources=[
-            "runtime/backends/verilog/binding.cpp",
-            "runtime/backends/verilog/vadd.cpp",
-            "shm/shm.cpp",
+            "csrc/verilog/binding.cpp",
+            "csrc/verilog/vadd.cpp",
+            "common/shm/shm.cpp",
         ],
         include_dirs=[
-            os.path.join(project_root, "shm"),
+            os.path.join(project_root, "common", "shm"),
         ],
         extra_compile_args=["-O3", "-std=c++17"],
     ),
     CppExtension(
-        name="aisrt_cpu",
+        name="aisrt.backends.aisrt_cpu",
         sources=[
-            "runtime/backends/cpu/linear.cpp",
+            "csrc/cpu/linear.cpp",
         ],
         extra_compile_args=["-O3", "-std=c++17"],
     ),
@@ -33,5 +33,6 @@ setup(
     description="AI System Runtime with Verilator RTL Backend",
     ext_modules=ext_modules,
     cmdclass={"build_ext": BuildExtension},
-    packages=["runtime", "runtime.nn"],
+    package_dir={"": "python"},
+    packages=find_packages(where="python"),
 )
