@@ -10,7 +10,12 @@ OBJ_DIR     := obj_dir
 SHM_DIR     := shm
 RUNTIME_DIR := runtime
 
-CPP_INCLUDES := -I$(abspath $(CPP_DIR)/include) -I$(abspath $(SHM_DIR))
+# --- Debug Toggles ---
+# Set to 1 to enable verbose SHM handshaking logs (e.g., make test DEBUG_SHM=1)
+DEBUG_SHM ?= 0
+DEBUG_FLAGS := -DDEBUG_SHM=$(DEBUG_SHM)
+
+CPP_INCLUDES := -I$(abspath $(CPP_DIR)/include) -I$(abspath $(SHM_DIR)) $(DEBUG_FLAGS)
 
 
 # ==============================================================================
@@ -88,7 +93,7 @@ hal:
 runtime: $(RTL_SO) $(CPU_SO)
 $(RTL_SO) $(CPU_SO): $(RUNTIME_SRCS)
 	@echo "--- [Runtime] Building Python PyBind11 Backends (RTL & CPU) ---"
-	pip install -e . --no-build-isolation 
+	CFLAGS="$(DEBUG_FLAGS)" CXXFLAGS="$(DEBUG_FLAGS)" pip install -e . --no-build-isolation 
 	@echo "--- [Runtime] Build Complete ---"
 
 # ==========================================
