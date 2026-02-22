@@ -1,6 +1,3 @@
-obj_dir/
-*.vcd
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -9,6 +6,7 @@ __pycache__/
 # C extensions
 *.o
 *.so
+compile_commands.json
 
 # Distribution / packaging
 .Python
@@ -29,6 +27,9 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+obj_dir/
+*.vcd
+.vscode
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

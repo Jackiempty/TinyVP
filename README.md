@@ -63,6 +63,7 @@ If you need to build or manage individual components, use the following `make` t
 | `make runtime` | Builds only the Python PyBind11 bindings (`aisrt_rtl.so` & `aisrt_cpu.so`). |
 | `make clean` | Removes all compiled binaries, `.so` files, and build cache directories. |
 | `make format` | Runs `clang-format` on C/C++ files and `ruff` on Python scripts. |
+| `make compdb` | Generates a `compile_commands.json` database using `bear` for accurate C/C++ IDE IntelliSense. |
 
 ### Debugging IPC (Shared Memory)
 
@@ -76,3 +77,21 @@ make test DEBUG_SHM=1
 ```
 
 This will output verbose symmetric logs from both the Host and the HAL, allowing you to easily pinpoint where the communication stalled.
+
+### IDE Support (VS Code / clangd)
+
+To enable accurate C/C++ code navigation, auto-completion, and error checking (especially for the PyBind11 extensions and Verilated headers), you should generate a compilation database.
+
+
+
+1. **Install `bear`**: Ensure the `bear` tool is installed on your system (e.g., `sudo apt install bear` on Ubuntu).
+2. **Generate Database**: Run the following command in the project root:
+   ```bash
+   make compdb
+   ```
+3. **Configure VS Code**: This will generate a `compile_commands.json` file. If you are using VS Code with the C/C++ extension, ensure your `.vscode/c_cpp_properties.json` includes:
+   ```json
+   "compileCommands": "${workspaceFolder}/compile_commands.json"
+   ```
+   This allows the Language Server Protocol (LSP) to resolve all `#include` paths and compiler flags automatically.
+

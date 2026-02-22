@@ -75,7 +75,7 @@ PY_EXT_SUFFIX := $(shell python3 -c "import sysconfig; print(sysconfig.get_confi
 RTL_SO        := aisrt_rtl$(PY_EXT_SUFFIX)
 CPU_SO        := aisrt_cpu$(PY_EXT_SUFFIX)
 
-.PHONY: all hal runtime format clean test
+.PHONY: all hal runtime format clean test compdb
 
 all: hal runtime
 
@@ -93,7 +93,7 @@ hal:
 runtime: $(RTL_SO) $(CPU_SO)
 $(RTL_SO) $(CPU_SO): $(RUNTIME_SRCS)
 	@echo "--- [Runtime] Building Python PyBind11 Backends (RTL & CPU) ---"
-	CFLAGS="$(DEBUG_FLAGS)" CXXFLAGS="$(DEBUG_FLAGS)" pip install -e . --no-build-isolation 
+	CFLAGS="$(DEBUG_FLAGS)" CXXFLAGS="$(DEBUG_FLAGS)" pip install -e . --no-build-isolation
 	@echo "--- [Runtime] Build Complete ---"
 
 # ==========================================
@@ -118,6 +118,12 @@ test: all
 # ==========================================
 # Utilities
 # ==========================================
+# Generate compile_commands.json
+compdb: clean
+	@echo "--- Generating compile_commands.json using bear ---"
+	bear -- $(MAKE) all
+	@echo "--- compile_commands.json generated successfully ---"
+
 format:
 	@echo "--- Formatting C/C++ Code ---"
 	find . $(FIND_EXCLUDES) $(C_FIND_INCLUDES) -print0 | xargs -0 -r $(C_FORMATTER)
