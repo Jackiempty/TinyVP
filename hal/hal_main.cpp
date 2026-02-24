@@ -9,6 +9,18 @@
 #include "operators/vector_add_hal.hpp"
 #include "shm.hpp"
 
+#ifndef DEBUG_HAL
+#define DEBUG_HAL 0
+#endif
+
+#if DEBUG_HAL
+#define HAL_DEBUG(x) std::cout << "[HAL DEBUG] " << x << std::endl
+#else
+#define HAL_DEBUG(x) \
+  do {               \
+  } while (0)
+#endif
+
 volatile sig_atomic_t keep_running = 1;
 
 void signal_handler(int signum) {
@@ -30,7 +42,7 @@ int main(int argc, char** argv) {
   // ==========================================
   // 1. Initialize Communication and Hardware Modules
   // ==========================================
-  std::cout << "[HAL] Initializing Shared Memory Segment..." << std::endl;
+  HAL_DEBUG("Initializing Shared Memory Segment...");
   SharedMemorySegment shm("aisrt_shm", true);  // Server is responsible for clearing the SHM
   VectorAddHAL        vadd_module;
 
@@ -47,6 +59,7 @@ int main(int argc, char** argv) {
       // Update status to running. Add compiler barrier to prevent instruction reordering
       cmd->status = CmdStatus::RUNNING;
       asm volatile("" ::: "memory");
+      HAL_DEBUG("Fetched Command Opcode: " << static_cast<uint32_t>(cmd->opcode) << ", Size: " << cmd->size);
 
       // --- DECODE & EXECUTE ---
       switch (cmd->opcode) {
@@ -99,6 +112,6 @@ int main(int argc, char** argv) {
   // ==========================================
   // 3. Resource Release
   // ==========================================
-  std::cout << "[HAL] Server offline. Goodbye." << std::endl;
+  std::cout << "[HAL] Server offline" << std::endl;
   return 0;
 }

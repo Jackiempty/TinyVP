@@ -43,7 +43,6 @@ SharedMemorySegment::~SharedMemorySegment() {
   // Unmap memory and close the file descriptor
   if (layout) { munmap(layout, sizeof(ShmLayout)); }
   if (fd != -1) { close(fd); }
-  // Note: shm_unlink is not called here; the memory object is kept so both sides can restart independently
 }
 
 // ==========================================
@@ -51,13 +50,13 @@ SharedMemorySegment::~SharedMemorySegment() {
 // ==========================================
 
 uint32_t SharedMemorySegment::push_command(const Command& cmd) {
-  // Get the current read/write pointers (use acquire semantics to ensure memory synchronization)
+  // Get the current read/write pointers
   uint32_t current_head = layout->head.load(std::memory_order_acquire);
   uint32_t current_tail = layout->tail.load(std::memory_order_acquire);
 
   uint32_t next_head = (current_head + 1) % CMD_QUEUE_SIZE;
 
-  // Check if the Queue is full (definition of full: the next slot of head hits tail)
+  // Check if the Queue is full
   while (next_head == current_tail) {
     // Queue is full, yield slightly to wait for HAL to digest commands
     std::this_thread::yield();
@@ -67,7 +66,7 @@ uint32_t SharedMemorySegment::push_command(const Command& cmd) {
   // Write the command to the current_head position of the Queue
   layout->cmd_queue[current_head] = cmd;
 
-  // Update the head pointer (use release semantics to ensure HAL sees the new head only after data is written)
+  // Update the head pointer
   layout->head.store(next_head, std::memory_order_release);
 
   return current_head;  // Return this ticket (Index) so the Host can track it
@@ -75,7 +74,6 @@ uint32_t SharedMemorySegment::push_command(const Command& cmd) {
 
 void SharedMemorySegment::wait_for_command_done(uint32_t cmd_index) {
   // Host side polls the status of a specific command
-  // Use a combination of volatile and atomic to ensure it isn't optimized into an infinite loop by the compiler
   while (layout->cmd_queue[cmd_index].status != CmdStatus::DONE) {
     // Short sleep to avoid 100% CPU usage
     std::this_thread::sleep_for(std::chrono::microseconds(1));
@@ -103,7 +101,7 @@ Command* SharedMemorySegment::fetch_command() {
   // Get the pointer to the command to be processed
   Command* cmd = &layout->cmd_queue[current_tail];
 
-  // Update the tail pointer (move forward by one slot to release Queue space)
+  // Update the tail pointer
   uint32_t next_tail = (current_tail + 1) % CMD_QUEUE_SIZE;
   layout->tail.store(next_tail, std::memory_order_release);
 

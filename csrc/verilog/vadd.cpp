@@ -1,12 +1,17 @@
 // runtime/backends/verilog/vadd.cpp
 #include "vadd.hpp"
 
-#ifndef DEBUG_SHM
-#define DEBUG_SHM 0
+#ifndef DEBUG_HOST
+#define DEBUG_HOST 0
 #endif
 
-#define SHM_LOG(msg) \
-  if (DEBUG_SHM) { logLine(msg); }
+#if DEBUG_HOST
+#define HOST_DEBUG(x) std::cout << "[Host DEBUG] " << x << std::endl
+#else
+#define HOST_DEBUG(x) \
+  do {                \
+  } while (0)
+#endif
 
 extern SharedMemorySegment shm;
 
@@ -15,14 +20,14 @@ void vadd(const int32_t* vec_a, const int32_t* vec_b, int32_t* vec_c, uint32_t s
   // Step 1: Memory Allocation
   // ==========================================
   // Because the payload is a huge continuous int32_t array, we need to allocate offsets.
-  // (Currently, we assume synchronous execution, so we can allocate starting directly from 0.
-  // In the future, if asynchronous/multi-instruction is supported, this will be replaced with a malloc-like algorithm)
   uint32_t offset_a = 0;
   uint32_t offset_b = offset_a + size;
   uint32_t offset_c = offset_b + size;
 
   // Failsafe: Ensure it does not exceed the SHM Payload capacity
   if (offset_c + size > PAYLOAD_CAPACITY) { throw std::runtime_error("SHM Payload capacity exceeded!"); }
+  HOST_DEBUG("Allocating VADD Payload - Size: " << size << " | a:" << offset_a << " b:" << offset_b
+                                                << " c:" << offset_c);
 
   // ==========================================
   // Step 2: Data Transfer
@@ -44,12 +49,14 @@ void vadd(const int32_t* vec_a, const int32_t* vec_b, int32_t* vec_c, uint32_t s
 
   // Push the command into the Ring Buffer and get the index (Ticket) of that command
   uint32_t cmd_idx = shm.push_command(cmd);
+  HOST_DEBUG("Pushed VADD Command at Queue Index: " << cmd_idx);
 
   // ==========================================
   // Step 4: Wait for hardware execution to complete (Wait / Poll)
   // ==========================================
   // Call the encapsulated polling API of SHM to hide the underlying status check logic
   shm.wait_for_command_done(cmd_idx);
+  HOST_DEBUG("VADD Command " << cmd_idx << " Done. Reading back results.");
 
   // ==========================================
   // Step 5: Readback

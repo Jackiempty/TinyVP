@@ -15,9 +15,12 @@ BUILD_DIR   := build
 OBJ_DIR     := $(BUILD_DIR)/obj_dir
 
 # --- Debug Toggles ---
-# Set to 1 to enable verbose SHM handshaking logs (e.g., make test DEBUG_SHM=1)
-DEBUG_SHM ?= 0
-DEBUG_FLAGS := -DDEBUG_SHM=$(DEBUG_SHM)
+# DEBUG is the master switch. You can also override them individually:
+# e.g., make test DEBUG=1 (Enables both)
+# e.g., make test DEBUG_HOST=1 (Enables only Host logs)
+DEBUG      ?= 0
+DEBUG_HOST ?= $(DEBUG)
+DEBUG_HAL  ?= $(DEBUG)
 
 CPP_INCLUDES := -I$(abspath $(CPP_DIR)) -I$(abspath $(CPP_DIR)/operators) -I$(abspath $(SHM_DIR)) $(DEBUG_FLAGS)
 
@@ -141,3 +144,4 @@ clean:
 	rm -rf $(BUILD_DIR) dump.vcd python/aisrt.egg-info
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.so" -not -path "./.venv/*" -delete
+	rm -f /dev/shm/aisrt_shm
