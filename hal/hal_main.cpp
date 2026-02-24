@@ -1,89 +1,104 @@
-// hal/src/hal_main.cpp
+// hal/hal_main.cpp
+#include <verilated.h>
+
+#include <chrono>
+#include <csignal>
 #include <iostream>
-#include <vector>
+#include <thread>
 
+#include "operators/vector_add_hal.hpp"
 #include "shm.hpp"
-#include "vector_add_hal.hpp"
 
-#ifndef DEBUG_SHM
-#define DEBUG_SHM 0
-#endif
+volatile sig_atomic_t keep_running = 1;
 
-#define SHM_LOG(msg) \
-  if (DEBUG_SHM) { logLine(msg); }
-
-static VectorAddHAL hal;
+void signal_handler(int signum) {
+  std::cout << "\n[HAL] Interrupt signal (" << signum << ") received. Initiating graceful shutdown..." << std::endl;
+  keep_running = 0;
+}
 
 int main(int argc, char** argv) {
+  // ==========================================
+  // 0. System Environment Initialization
+  // ==========================================
+  // Pass startup arguments to Verilator (crucial for enabling waveform trace)
   Verilated::commandArgs(argc, argv);
-  VectorAddHAL accelerator;
 
-  SharedMemorySegment shm_h2a("shm_h2a", true, true);
-  SharedMemorySegment shm_a2h("shm_a2h", true, true);
+  // Register OS interrupt signals (Ctrl+C or kill)
+  std::signal(SIGINT, signal_handler);
+  std::signal(SIGTERM, signal_handler);
 
-  auto* req_ptr  = shm_h2a.base;
-  auto* resp_ptr = shm_a2h.base;
+  // ==========================================
+  // 1. Initialize Communication and Hardware Modules
+  // ==========================================
+  std::cout << "[HAL] Initializing Shared Memory Segment..." << std::endl;
+  SharedMemorySegment shm("aisrt_shm", true);  // Server is responsible for clearing the SHM
+  VectorAddHAL        vadd_module;
 
-  while (true) {
-    // ---------------------------------------------------------
-    // Phase 1: Receive Request (Host to Accelerator)
-    // ---------------------------------------------------------
+  std::cout << "[HAL] Dispatcher Started. Waiting for instructions..." << std::endl;
 
-    // Assert READY and wait for VALID
-    SHM_LOG("[H2A] [HAL] waiting VALID...");
-    shm_h2a.setFlag(Packet::READY_BIT);
-    while (!shm_h2a.isFlagSet(Packet::VALID_BIT)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    SHM_LOG("[H2A] [HAL] VALID observed");
+  // ==========================================
+  // 2. Core Dispatch Loop (Fetch-Decode-Execute)
+  // ==========================================
+  while (keep_running) {
+    // --- FETCH ---
+    if (shm.has_new_command()) {
+      Command* cmd = shm.fetch_command();
 
-    // Clear READY during data transfer
-    shm_h2a.clearFlag(Packet::READY_BIT);
+      // Update status to running. Add compiler barrier to prevent instruction reordering
+      cmd->status = CmdStatus::RUNNING;
+      asm volatile("" ::: "memory");
 
-    // Deserialize payload
-    uint32_t vec_size = getVectorSize(req_ptr);
-    int32_t  vec_a[MAX_VEC_SIZE];
-    int32_t  vec_b[MAX_VEC_SIZE];
-    int32_t  vec_c[MAX_VEC_SIZE];
-    getVectorData(req_ptr, vec_a, 0, vec_size);
-    getVectorData(req_ptr, vec_b, 1, vec_size);
+      // --- DECODE & EXECUTE ---
+      switch (cmd->opcode) {
+        case Opcode::VADD: {
+          // Safety check: Check if offsets exceed Payload capacity
+          if (cmd->dst_offset + cmd->size > PAYLOAD_CAPACITY || cmd->src1_offset + cmd->size > PAYLOAD_CAPACITY) {
+            std::cerr << "[HAL] ERROR: Memory boundary exceeded!" << std::endl;
+            break;
+          }
 
-    // Assert ACK to acknowledge receipt
-    shm_h2a.setFlag(Packet::ACK_BIT);
-    logLine("[HAL] Received Vector Add Request (Size: " + std::to_string(vec_size) + ")");
+          // Decode Offsets into physical memory pointers
+          int32_t* a = &shm.layout->payload[cmd->src1_offset];
+          int32_t* b = &shm.layout->payload[cmd->src2_offset];
+          int32_t* c = &shm.layout->payload[cmd->dst_offset];
 
-    // ---------------------------------------------------------
-    // Phase 2: Hardware Computation
-    // ---------------------------------------------------------
-    hal.reset();
-    hal.compute(vec_a, vec_b, vec_c, vec_size);
-    logLine("[HAL] Hardware Computation Completed.");
+          // Drive hardware computation
+          vadd_module.compute(a, b, c, cmd->size);
+          break;
+        }
 
-    // Wait for Host to clear ACK
-    SHM_LOG("[H2A] [HAL] waiting ACK clear");
-    while (shm_h2a.isFlagSet(Packet::ACK_BIT)) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); }
-    SHM_LOG("---- HAL Reader complete ----");
+        case Opcode::FINISH: {
+          std::cout << "[HAL] FINISH command received. Terminating loop." << std::endl;
+          keep_running = 0;  // Trigger loop termination
+          break;
+        }
 
-    // ---------------------------------------------------------
-    // Phase 3: Send Response (Accelerator to Host)
-    // ---------------------------------------------------------
-    // Wait for Host READY
-    SHM_LOG("[A2H] [HAL] waiting READY");
-    while (!shm_a2h.isFlagSet(Packet::READY_BIT)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        case Opcode::NOP: {
+          // NOP command, pass through directly (can be used to test communication latency)
+          break;
+        }
 
-    // Serialize result payload
-    setVectorSize(resp_ptr, vec_size);
-    setVectorData(resp_ptr, vec_c, 0, vec_size);
+        default: {
+          std::cerr << "[HAL] WARNING: Unknown Opcode (" << static_cast<uint32_t>(cmd->opcode) << ") detected!"
+                    << std::endl;
+          break;
+        }
+      }
 
-    // Assert VALID and wait for ACK
-    shm_a2h.setFlag(Packet::VALID_BIT);
-    SHM_LOG("[A2H] [HAL] waiting ACK");
-    while (!shm_a2h.isFlagSet(Packet::ACK_BIT)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      // --- WRITEBACK ---
+      // Ensure all payload write operations are committed to memory before updating status to DONE
+      asm volatile("" ::: "memory");
+      cmd->status = CmdStatus::DONE;
 
-    // Clear flags to complete transaction
-    shm_a2h.clearFlag(Packet::ACK_BIT);
-    shm_a2h.clearFlag(Packet::VALID_BIT);
-    logLine("[HAL] Result Dispatched to Host.");
-    SHM_LOG("---- HAL Writer complete ----\n");
+    } else {
+      // Short sleep when Queue is idle to yield CPU resources
+      std::this_thread::sleep_for(std::chrono::microseconds(1));
+    }
   }
 
+  // ==========================================
+  // 3. Resource Release
+  // ==========================================
+  std::cout << "[HAL] Server offline. Goodbye." << std::endl;
   return 0;
 }

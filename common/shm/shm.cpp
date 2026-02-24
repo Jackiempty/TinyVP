@@ -1,4 +1,4 @@
-// shm/shm.cpp
+// common/shm/shm.cpp
 #include "shm.hpp"
 
 #include <fcntl.h>
@@ -6,81 +6,106 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <iostream>
-#include <mutex>
+#include <stdexcept>
+#include <thread>
 
-namespace {
-std::mutex g_log_mtx;
-}  // namespace
+// ==========================================
+// 1. Lifecycle Management (Constructor & Destructor)
+// ==========================================
 
-// ------------------------- API Functions -------------------------
-uint32_t getVectorSize(const Packet* p) { return p->vec_size; }
-
-void setVectorSize(Packet* p, uint32_t size) { p->vec_size = std::min(size, MAX_VEC_SIZE); }
-
-int32_t getData(const Packet* p, int vec_id, std::size_t index) {
-  return (vec_id == 0) ? p->vec_a[index] : p->vec_b[index];
-}
-
-void setData(Packet* p, int32_t v, int vec_id, std::size_t index) {
-  if (vec_id == 0)
-    p->vec_a[index] = v;
-  else
-    p->vec_b[index] = v;
-}
-
-void getVectorData(const Packet* p, int32_t* dst, int vec_id, uint32_t size) {
-  size               = std::min(size, MAX_VEC_SIZE);
-  const int32_t* src = (vec_id == 0) ? p->vec_a : p->vec_b;
-  std::memcpy(dst, src, size * sizeof(int32_t));
-}
-
-void setVectorData(Packet* p, const int32_t* src, int vec_id, uint32_t size) {
-  size         = std::min(size, MAX_VEC_SIZE);
-  int32_t* dst = (vec_id == 0) ? p->vec_a : p->vec_b;
-  std::memcpy(dst, src, size * sizeof(int32_t));
-}
-
-// ------------------------- SharedMemorySegment Implementation -------------------------
-SharedMemorySegment::SharedMemorySegment(const std::string& shm_name, bool clear, bool unlink)
-    : name(shm_name), unlink_on_destroy(unlink) {
+SharedMemorySegment::SharedMemorySegment(const std::string& shm_name, bool clear_on_init) : name(shm_name) {
+  // 1. Open or create POSIX shared memory
   fd = shm_open(name.c_str(), O_CREAT | O_RDWR, 0666);
-  if (fd < 0) throw std::runtime_error("shm_open failed: " + name);
+  if (fd == -1) { throw std::runtime_error("Failed to shm_open: " + name); }
 
-  if (ftruncate(fd, SHM_SIZE) != 0) throw std::runtime_error("ftruncate failed: " + name);
+  // 2. Set the size of the shared memory to the exact size of ShmLayout
+  if (ftruncate(fd, sizeof(ShmLayout)) == -1) { throw std::runtime_error("Failed to ftruncate SHM"); }
 
-  void* mapped = mmap(nullptr, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-  if (mapped == MAP_FAILED) throw std::runtime_error("mmap failed: " + name);
+  // 3. Map the memory into the current Process space and cast it to a ShmLayout pointer
+  void* ptr = mmap(nullptr, sizeof(ShmLayout), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  if (ptr == MAP_FAILED) { throw std::runtime_error("Failed to mmap SHM"); }
+  layout = static_cast<ShmLayout*>(ptr);
 
-  base = static_cast<Packet*>(mapped);
+  // 4. Initialization clearance when the Server (HAL) starts
+  if (clear_on_init) {
+    std::memset(layout, 0, sizeof(ShmLayout));
 
-  if (clear) {
-    std::memset(base, 0, SHM_SIZE);
-    base->flags.store(0, std::memory_order_relaxed);
+    // Ensure atomic variables are correctly zeroed out
+    layout->head.store(0, std::memory_order_relaxed);
+    layout->tail.store(0, std::memory_order_relaxed);
   }
 }
 
 SharedMemorySegment::~SharedMemorySegment() {
-  if (base) munmap(base, SHM_SIZE);
-  if (fd >= 0) close(fd);
-  if (unlink_on_destroy) { shm_unlink(name.c_str()); }
+  // Unmap memory and close the file descriptor
+  if (layout) { munmap(layout, sizeof(ShmLayout)); }
+  if (fd != -1) { close(fd); }
+  // Note: shm_unlink is not called here; the memory object is kept so both sides can restart independently
 }
 
-uint32_t SharedMemorySegment::flags() const { return base->flags.load(std::memory_order_acquire); }
+// ==========================================
+// 2. Host-side API (Push)
+// ==========================================
 
-void SharedMemorySegment::writeFlags(uint32_t v) { base->flags.store(v, std::memory_order_release); }
+uint32_t SharedMemorySegment::push_command(const Command& cmd) {
+  // Get the current read/write pointers (use acquire semantics to ensure memory synchronization)
+  uint32_t current_head = layout->head.load(std::memory_order_acquire);
+  uint32_t current_tail = layout->tail.load(std::memory_order_acquire);
 
-void SharedMemorySegment::setFlag(int bit) { base->flags.fetch_or(1u << bit, std::memory_order_acq_rel); }
+  uint32_t next_head = (current_head + 1) % CMD_QUEUE_SIZE;
 
-void SharedMemorySegment::clearFlag(int bit) { base->flags.fetch_and(~(1u << bit), std::memory_order_acq_rel); }
+  // Check if the Queue is full (definition of full: the next slot of head hits tail)
+  while (next_head == current_tail) {
+    // Queue is full, yield slightly to wait for HAL to digest commands
+    std::this_thread::yield();
+    current_tail = layout->tail.load(std::memory_order_acquire);  // Read tail again
+  }
 
-bool SharedMemorySegment::isFlagSet(int bit) const { return (flags() >> bit) & 1u; }
+  // Write the command to the current_head position of the Queue
+  layout->cmd_queue[current_head] = cmd;
 
-// ------------------------- Thread Helper Functions -----------------------
-void logLine(const std::string& s) {
-  std::lock_guard<std::mutex> lk(g_log_mtx);
-  std::cout << s << std::endl;
+  // Update the head pointer (use release semantics to ensure HAL sees the new head only after data is written)
+  layout->head.store(next_head, std::memory_order_release);
+
+  return current_head;  // Return this ticket (Index) so the Host can track it
+}
+
+void SharedMemorySegment::wait_for_command_done(uint32_t cmd_index) {
+  // Host side polls the status of a specific command
+  // Use a combination of volatile and atomic to ensure it isn't optimized into an infinite loop by the compiler
+  while (layout->cmd_queue[cmd_index].status != CmdStatus::DONE) {
+    // Short sleep to avoid 100% CPU usage
+    std::this_thread::sleep_for(std::chrono::microseconds(1));
+  }
+}
+
+// ==========================================
+// 3. HAL-side API (Fetch)
+// ==========================================
+
+bool SharedMemorySegment::has_new_command() const {
+  // As long as head is not equal to tail, it means there are new commands waiting to be processed
+  uint32_t current_head = layout->head.load(std::memory_order_acquire);
+  uint32_t current_tail = layout->tail.load(std::memory_order_acquire);
+  return current_head != current_tail;
+}
+
+Command* SharedMemorySegment::fetch_command() {
+  uint32_t current_head = layout->head.load(std::memory_order_acquire);
+  uint32_t current_tail = layout->tail.load(std::memory_order_acquire);
+
+  // Failsafe: return nullptr if there are actually no new commands
+  if (current_head == current_tail) { return nullptr; }
+
+  // Get the pointer to the command to be processed
+  Command* cmd = &layout->cmd_queue[current_tail];
+
+  // Update the tail pointer (move forward by one slot to release Queue space)
+  uint32_t next_tail = (current_tail + 1) % CMD_QUEUE_SIZE;
+  layout->tail.store(next_tail, std::memory_order_release);
+
+  return cmd;
 }

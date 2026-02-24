@@ -8,64 +8,54 @@
 #define SHM_LOG(msg) \
   if (DEBUG_SHM) { logLine(msg); }
 
-RTLBackend::RTLBackend() : shm_h2a("shm_h2a", false), shm_a2h("shm_a2h", false) { logLine("[Host] SHM Initialized."); }
+extern SharedMemorySegment shm;
 
-void RTLBackend::vadd(const int32_t* vec_a, const int32_t* vec_b, int32_t* vec_c, uint32_t vec_size) {
-  auto* req_ptr  = shm_h2a.base;
-  auto* resp_ptr = shm_a2h.base;
+void vadd(const int32_t* vec_a, const int32_t* vec_b, int32_t* vec_c, uint32_t size) {
+  // ==========================================
+  // Step 1: Memory Allocation
+  // ==========================================
+  // Because the payload is a huge continuous int32_t array, we need to allocate offsets.
+  // (Currently, we assume synchronous execution, so we can allocate starting directly from 0.
+  // In the future, if asynchronous/multi-instruction is supported, this will be replaced with a malloc-like algorithm)
+  uint32_t offset_a = 0;
+  uint32_t offset_b = offset_a + size;
+  uint32_t offset_c = offset_b + size;
 
-  // ---------------------------------------------------------
-  // Phase 1: Send Request (Host to Accelerator)
-  // ---------------------------------------------------------
+  // Failsafe: Ensure it does not exceed the SHM Payload capacity
+  if (offset_c + size > PAYLOAD_CAPACITY) { throw std::runtime_error("SHM Payload capacity exceeded!"); }
 
-  // Wait for Accelerator READY
-  SHM_LOG("[H2A] [Host] Waiting for Accelerator READY...");
-  while (!shm_h2a.isFlagSet(Packet::READY_BIT)) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); }
+  // ==========================================
+  // Step 2: Data Transfer
+  // ==========================================
+  // Directly copy PyTorch data to the calculated payload addresses
+  std::memcpy(&shm.layout->payload[offset_a], vec_a, size * sizeof(int32_t));
+  std::memcpy(&shm.layout->payload[offset_b], vec_b, size * sizeof(int32_t));
 
-  // Serialize metadata and payload
-  SHM_LOG("[H2A] [Host] READY observed. Serializing payload...");
-  setVectorSize(req_ptr, vec_size);
-  setVectorData(req_ptr, vec_a, 0, vec_size);
-  setVectorData(req_ptr, vec_b, 1, vec_size);
+  // ==========================================
+  // Step 3: Instruction Dispatch
+  // ==========================================
+  Command cmd;
+  cmd.opcode      = Opcode::VADD;
+  cmd.status      = CmdStatus::PENDING;  // 初始狀態
+  cmd.size        = size;
+  cmd.src1_offset = offset_a;
+  cmd.src2_offset = offset_b;
+  cmd.dst_offset  = offset_c;
 
-  // Assert VALID to indicate payload is ready
-  SHM_LOG("[H2A] [Host] Asserting VALID...");
-  shm_h2a.setFlag(Packet::VALID_BIT);
+  // Push the command into the Ring Buffer and get the index (Ticket) of that command
+  uint32_t cmd_idx = shm.push_command(cmd);
 
-  // Wait for Accelerator ACK
-  SHM_LOG("[H2A] [Host] Waiting for Accelerator ACK...");
-  while (!shm_h2a.isFlagSet(Packet::ACK_BIT)) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); }
+  // ==========================================
+  // Step 4: Wait for hardware execution to complete (Wait / Poll)
+  // ==========================================
+  // Call the encapsulated polling API of SHM to hide the underlying status check logic
+  shm.wait_for_command_done(cmd_idx);
 
-  // Clear flags to complete transaction
-  SHM_LOG("[H2A] [Host] ACK observed. Clearing flags...");
-  shm_h2a.clearFlag(Packet::ACK_BIT);
-  shm_h2a.clearFlag(Packet::VALID_BIT);
+  // ==========================================
+  // Step 5: Readback
+  // ==========================================
+  std::memcpy(vec_c, &shm.layout->payload[offset_c], size * sizeof(int32_t));
 
-  // ---------------------------------------------------------
-  // Phase 2: Receive Response (Accelerator to Host)
-  // ---------------------------------------------------------
-
-  // Assert READY to receive result
-  SHM_LOG("[A2H] [Host] Asserting READY to receive result...");
-  shm_a2h.setFlag(Packet::READY_BIT);
-
-  // Wait for Accelerator VALID
-  SHM_LOG("[A2H] [Host] Waiting for Accelerator VALID...");
-  while (!shm_a2h.isFlagSet(Packet::VALID_BIT)) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); }
-
-  // Clear READY during data transfer
-  SHM_LOG("[A2H] [Host] VALID observed. Deserializing result...");
-  shm_a2h.clearFlag(Packet::READY_BIT);
-
-  // Deserialize result payload
-  SHM_LOG("[A2H] [Host] Asserting ACK...");
-  getVectorData(resp_ptr, vec_c, 0, vec_size);
-
-  // Assert ACK to acknowledge receipt
-  SHM_LOG("[A2H] [Host] Waiting for Accelerator to clear ACK...");
-  shm_a2h.setFlag(Packet::ACK_BIT);
-
-  // Wait for Accelerator to clear ACK for synchronization
-  SHM_LOG("[A2H] [Host] Transaction complete.\n");
-  while (shm_a2h.isFlagSet(Packet::ACK_BIT)) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); }
+  // Release the status of this command
+  shm.layout->cmd_queue[cmd_idx].opcode = Opcode::NOP;
 }

@@ -8,17 +8,17 @@
 
 namespace py = pybind11;
 
-static RTLBackend backend;
+SharedMemorySegment shm("aisrt_shm", false);
 
 /**
  * @brief Wrapper for vector addition targeting the custom RTL backend.
  *
- * This function serves as the PyTorch C++ extension entry point. It converts
- * PyTorch tensors into standard C++ vectors, dispatches the workload to the
- * hardware abstraction layer (HAL), and reconstructs the result back into a tensor.
+ * This function serves as the PyTorch C++ extension entry point. It directly
+ * passes the underlying raw pointers of the PyTorch tensors to the hardware
+ * dispatch function via shared memory.
  *
- * @param in1 First input tensor (must be contiguous float32).
- * @param in2 Second input tensor (must be contiguous float32).
+ * @param in1 First input tensor (must be contiguous int32).
+ * @param in2 Second input tensor (must be contiguous int32).
  * @return torch::Tensor The result of the hardware-accelerated vector addition.
  */
 torch::Tensor vadd_wrapper(torch::Tensor in1, torch::Tensor in2) {
@@ -40,7 +40,7 @@ torch::Tensor vadd_wrapper(torch::Tensor in1, torch::Tensor in2) {
   int32_t*      out_ptr = output.data_ptr<int32_t>();
 
   // 4. Dispatch the computation to the hardware abstraction layer
-  backend.vadd(in1_ptr, in2_ptr, out_ptr, size);
+  vadd(in1_ptr, in2_ptr, out_ptr, size);
 
   return output;
 }

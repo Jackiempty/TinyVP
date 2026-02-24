@@ -1,58 +1,37 @@
-// shm/shm.hpp
-#ifndef SHM_HPP
-#define SHM_HPP
+// common/shm/shm.hpp
+#pragma once
 
 #include <atomic>
 #include <cstdint>
-#include <mutex>
 #include <string>
-#include <vector>
 
-constexpr uint32_t MAX_VEC_SIZE = 512;
+#include "types.hpp"
 
-// ------------------------- Packet model -------------------------
-struct Packet {
-  std::atomic<uint32_t> flags;
-  uint32_t              vec_size;
-  int32_t               vec_a[MAX_VEC_SIZE];
-  int32_t               vec_b[MAX_VEC_SIZE];
+constexpr uint32_t CMD_QUEUE_SIZE   = 64;
+constexpr uint32_t PAYLOAD_CAPACITY = 8192;
 
-  static constexpr int READY_BIT = 31;
-  static constexpr int VALID_BIT = 30;
-  static constexpr int ACK_BIT   = 29;
+struct ShmLayout {
+  std::atomic<uint32_t> head;
+  std::atomic<uint32_t> tail;
+
+  Command cmd_queue[CMD_QUEUE_SIZE];
+  int32_t payload[PAYLOAD_CAPACITY];
 };
 
-// ------------------------- API Functions -------------------------
-uint32_t getVectorSize(const Packet* p);
-void     setVectorSize(Packet* p, uint32_t size);
-
-// vec_id: 0 for A & C, 1 for B
-int32_t getData(const Packet* p, int vec_id, std::size_t index);
-void    setData(Packet* p, int32_t v, int vec_id, std::size_t index);
-
-void getVectorData(const Packet* p, int32_t* dst, int vec_id, uint32_t size);
-void setVectorData(Packet* p, const int32_t* src, int vec_id, uint32_t size);
-
-// ------------------------- SHM RAII wrapper -------------------------
-struct SharedMemorySegment {
+class SharedMemorySegment {
+  public:
   std::string name;
-  int         fd   = -1;
-  Packet*     base = nullptr;
-  bool        unlink_on_destroy;
+  int         fd;
+  ShmLayout*  layout;
 
-  static constexpr std::size_t SHM_SIZE = sizeof(Packet);
-
-  explicit SharedMemorySegment(const std::string& shm_name, bool clear = true, bool unlink = false);
+  explicit SharedMemorySegment(const std::string& shm_name, bool clear_on_init = false);
   ~SharedMemorySegment();
 
-  uint32_t flags() const;
-  void     writeFlags(uint32_t v);
-  void     setFlag(int bit);
-  void     clearFlag(int bit);
-  bool     isFlagSet(int bit) const;
+  // --- Host API ---
+  uint32_t push_command(const Command& cmd);
+  void     wait_for_command_done(uint32_t cmd_index);
+
+  // --- HAL API ---
+  bool     has_new_command() const;
+  Command* fetch_command();
 };
-
-// ----------------------- Thread Helper Functions ---------------------
-void logLine(const std::string& s);
-
-#endif  // SHM_HPP
