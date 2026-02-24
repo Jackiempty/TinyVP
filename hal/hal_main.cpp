@@ -6,8 +6,8 @@
 #include <iostream>
 #include <thread>
 
-#include "operators/vector_add_hal.hpp"
-#include "shm.hpp"
+#include "common/shm/shm.hpp"
+#include "hal/operators/vector_add_hal.hpp"
 
 #ifndef DEBUG_HAL
 #define DEBUG_HAL 0

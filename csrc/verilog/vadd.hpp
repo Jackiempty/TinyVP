@@ -1,4 +1,4 @@
-// runtime/backends/verilog/vadd.hpp
+// csrc/verilog/vadd.hpp
 #include <chrono>
 #include <cstring>
 #include <iostream>
@@ -6,7 +6,7 @@
 #include <thread>
 #include <vector>
 
-#include "shm.hpp"
+#include "common/shm/shm.hpp"
 
 /**
  * @brief Dispatches vector addition workloads to the RTL backend via shared memory.

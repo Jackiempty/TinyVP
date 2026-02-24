@@ -1,4 +1,4 @@
-// cpp/vector_add_hal.hpp
+// hal/operators/vector_add_hal.hpp
 #pragma once
 
 #ifndef VECTOR_ADD_HAL_HPP

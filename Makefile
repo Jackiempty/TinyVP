@@ -22,7 +22,9 @@ DEBUG      ?= 0
 DEBUG_HOST ?= $(DEBUG)
 DEBUG_HAL  ?= $(DEBUG)
 
-CPP_INCLUDES := -I$(abspath $(CPP_DIR)) -I$(abspath $(CPP_DIR)/operators) -I$(abspath $(SHM_DIR)) $(DEBUG_FLAGS)
+# --- Root-Relative Includes ---
+PROJECT_ROOT := $(abspath .)
+CPP_INCLUDES := -I$(PROJECT_ROOT) $(DEBUG_FLAGS)
 
 
 # ==============================================================================
@@ -141,7 +143,7 @@ format:
 
 clean:
 	@echo "--- Cleaning Build Artifacts ---"
-	rm -rf $(BUILD_DIR) dump.vcd python/aisrt.egg-info
+	rm -rf $(BUILD_DIR) dump.vcd python/aisrt.egg-info compile_commands.json
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.so" -not -path "./.venv/*" -delete
 	rm -f /dev/shm/aisrt_shm

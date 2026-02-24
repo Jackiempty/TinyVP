@@ -1,10 +1,11 @@
+// csrc/verilog/binding.cpp
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <torch/torch.h>
 
 #include <iostream>
 
-#include "vadd.hpp"
+#include "csrc/verilog/vadd.hpp"
 
 namespace py = pybind11;
 

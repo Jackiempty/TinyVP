@@ -1,4 +1,4 @@
-// runtime/backends/verilog/vadd.cpp
+// csrc/verilog/vadd.cpp
 #include "vadd.hpp"
 
 #ifndef DEBUG_HOST

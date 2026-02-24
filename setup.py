@@ -14,7 +14,7 @@ ext_modules = [
             "common/shm/shm.cpp",
         ],
         include_dirs=[
-            os.path.join(project_root, "common", "shm"),
+            project_root,
         ],
         extra_compile_args=["-O3", "-std=c++17"],
     ),
@@ -22,6 +22,9 @@ ext_modules = [
         name="aisrt.backends.aisrt_cpu",
         sources=[
             "csrc/cpu/linear.cpp",
+        ],
+        include_dirs=[
+            project_root,
         ],
         extra_compile_args=["-O3", "-std=c++17"],
     ),
