@@ -143,7 +143,7 @@ format:
 
 clean:
 	@echo "--- Cleaning Build Artifacts ---"
-	rm -rf $(BUILD_DIR) dump.vcd python/aisrt.egg-info compile_commands.json
+	rm -rf $(BUILD_DIR) dump.vcd python/aisrt.egg-info compile_commands.json .ruff_cache
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.so" -not -path "./.venv/*" -delete
 	rm -f /dev/shm/aisrt_shm
