@@ -1,4 +1,4 @@
-// csrc/verilog/vadd.hpp
+// csrc/device/vadd/vadd.hpp
 #include <chrono>
 #include <cstring>
 #include <iostream>

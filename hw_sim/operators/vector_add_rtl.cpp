@@ -1,5 +1,5 @@
-// hal/operators/vector_add_hal.cpp
-#include "vector_add_hal.hpp"
+// hw_sim/operators/vector_add_rtl.cpp
+#include "vector_add_rtl.hpp"
 
 VectorAddHAL::VectorAddHAL() {
   dut = new Vvector_add;

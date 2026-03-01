@@ -1,4 +1,4 @@
-// hal/hal_main.cpp
+// hw_sim/simulator.cpp
 #include <verilated.h>
 
 #include <chrono>
@@ -7,7 +7,7 @@
 #include <thread>
 
 #include "common/shm/shm.hpp"
-#include "hal/operators/vector_add_hal.hpp"
+#include "hw_sim/operators/vector_add_rtl.hpp"
 
 #ifndef DEBUG_HAL
 #define DEBUG_HAL 0

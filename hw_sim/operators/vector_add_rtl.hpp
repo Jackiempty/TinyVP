@@ -1,4 +1,4 @@
-// hal/operators/vector_add_hal.hpp
+// hw_sim/operators/vector_add_rtl.hpp
 #pragma once
 
 #ifndef VECTOR_ADD_HAL_HPP

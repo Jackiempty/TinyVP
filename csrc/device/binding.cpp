@@ -5,11 +5,9 @@
 
 #include <iostream>
 
-#include "csrc/verilog/vadd.hpp"
+#include "csrc/device/vadd/vadd.hpp"
 
 namespace py = pybind11;
-
-SharedMemorySegment shm("aisrt_shm", false);
 
 /**
  * @brief Wrapper for vector addition targeting the custom RTL backend.
