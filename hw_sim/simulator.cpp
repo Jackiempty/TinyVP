@@ -1,13 +1,14 @@
-// hal/hal_main.cpp
+// hw_sim/simulator.cpp
 #include <verilated.h>
 
+#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <iostream>
 #include <thread>
 
 #include "common/shm/shm.hpp"
-#include "hal/operators/vector_add_hal.hpp"
+#include "hw_sim/operators/vector_add_rtl.hpp"
 
 #ifndef DEBUG_HAL
 #define DEBUG_HAL 0
@@ -24,7 +25,7 @@
 volatile sig_atomic_t keep_running = 1;
 
 void signal_handler(int signum) {
-  std::cout << "\n[HAL] Interrupt signal (" << signum << ") received. Initiating graceful shutdown..." << std::endl;
+  std::cout << "\n[SIM] Interrupt signal (" << signum << ") received. Initiating graceful shutdown..." << std::endl;
   keep_running = 0;
 }
 
@@ -46,7 +47,7 @@ int main(int argc, char** argv) {
   SharedMemorySegment shm("aisrt_shm", true);  // Server is responsible for clearing the SHM
   VectorAddHAL        vadd_module;
 
-  std::cout << "[HAL] Dispatcher Started. Waiting for instructions..." << std::endl;
+  std::cout << "[SIM] Dispatcher Started. Waiting for instructions..." << std::endl;
 
   // ==========================================
   // 2. Core Dispatch Loop (Fetch-Decode-Execute)
@@ -58,7 +59,7 @@ int main(int argc, char** argv) {
 
       // Update status to running. Add compiler barrier to prevent instruction reordering
       cmd->status = CmdStatus::RUNNING;
-      asm volatile("" ::: "memory");
+      std::atomic_thread_fence(std::memory_order_release);
       HAL_DEBUG("Fetched Command Opcode: " << static_cast<uint32_t>(cmd->opcode) << ", Size: " << cmd->size);
 
       // --- DECODE & EXECUTE ---
@@ -66,7 +67,7 @@ int main(int argc, char** argv) {
         case Opcode::VADD: {
           // Safety check: Check if offsets exceed Payload capacity
           if (cmd->dst_offset + cmd->size > PAYLOAD_CAPACITY || cmd->src1_offset + cmd->size > PAYLOAD_CAPACITY) {
-            std::cerr << "[HAL] ERROR: Memory boundary exceeded!" << std::endl;
+            std::cerr << "[SIM] ERROR: Memory boundary exceeded!" << std::endl;
             break;
           }
 
@@ -81,7 +82,7 @@ int main(int argc, char** argv) {
         }
 
         case Opcode::FINISH: {
-          std::cout << "[HAL] FINISH command received. Terminating loop." << std::endl;
+          std::cout << "[SIM] FINISH command received. Terminating loop." << std::endl;
           keep_running = 0;  // Trigger loop termination
           break;
         }
@@ -92,7 +93,7 @@ int main(int argc, char** argv) {
         }
 
         default: {
-          std::cerr << "[HAL] WARNING: Unknown Opcode (" << static_cast<uint32_t>(cmd->opcode) << ") detected!"
+          std::cerr << "[SIM] WARNING: Unknown Opcode (" << static_cast<uint32_t>(cmd->opcode) << ") detected!"
                     << std::endl;
           break;
         }
@@ -100,7 +101,7 @@ int main(int argc, char** argv) {
 
       // --- WRITEBACK ---
       // Ensure all payload write operations are committed to memory before updating status to DONE
-      asm volatile("" ::: "memory");
+      std::atomic_thread_fence(std::memory_order_release);
       cmd->status = CmdStatus::DONE;
 
     } else {
@@ -112,6 +113,6 @@ int main(int argc, char** argv) {
   // ==========================================
   // 3. Resource Release
   // ==========================================
-  std::cout << "[HAL] Server offline" << std::endl;
+  std::cout << "[SIM] Server offline" << std::endl;
   return 0;
 }

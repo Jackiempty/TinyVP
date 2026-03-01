@@ -1,27 +1,21 @@
-// hal/operators/vector_add_hal.hpp
+// hw_sim/operators/vector_add_rtl.hpp
 #pragma once
 
-#ifndef VECTOR_ADD_HAL_HPP
-#define VECTOR_ADD_HAL_HPP
+#include <cstddef>
+#include <cstdint>
 
-#include <verilated.h>
-
-#include <iostream>
-#include <vector>
-
-#include "Vvector_add.h"
+class Vvector_add;
 
 class VectorAddHAL {
   private:
   Vvector_add* dut;
-  vluint64_t   main_time = 0;
+  uint64_t     main_time = 0;
   const int    VEC_LEN   = 4;
 
   void tick();
 
   public:
   VectorAddHAL();
-
   ~VectorAddHAL();
 
   /**
@@ -37,5 +31,3 @@ class VectorAddHAL {
    */
   void compute(const int32_t* a, const int32_t* b, int32_t* result, size_t total_size);
 };
-
-#endif  // VECTOR_ADD_HAL_HPP

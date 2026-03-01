@@ -1,15 +1,13 @@
-// csrc/verilog/binding.cpp
+// csrc/device/binding.cpp
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <torch/torch.h>
 
 #include <iostream>
 
-#include "csrc/verilog/vadd.hpp"
+#include "csrc/device/vadd/vadd.hpp"
 
 namespace py = pybind11;
-
-SharedMemorySegment shm("aisrt_shm", false);
 
 /**
  * @brief Wrapper for vector addition targeting the custom RTL backend.
