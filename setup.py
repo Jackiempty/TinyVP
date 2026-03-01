@@ -9,8 +9,10 @@ ext_modules = [
     CppExtension(
         name="aisrt.backends.aisrt_rtl",
         sources=[
-            "csrc/verilog/binding.cpp",
-            "csrc/verilog/vadd.cpp",
+            "csrc/device/binding.cpp",
+            "csrc/device/vadd/vadd.cpp",
+            "hal/hal.cpp",
+            "hal/ipc/ipc.cpp",
             "common/shm/shm.cpp",
         ],
         include_dirs=[
@@ -32,8 +34,8 @@ ext_modules = [
 
 setup(
     name="aisrt",
-    version="0.1.0",
-    description="AI System Runtime with Verilator RTL Backend",
+    version="0.1.2",
+    description="AI System Runtime with Hardware Abstraction Layer",
     ext_modules=ext_modules,
     cmdclass={"build_ext": BuildExtension},
     package_dir={"": "python"},

@@ -5,7 +5,8 @@
 # ==============================================================================
 MODULE      := vector_add
 RTL_DIR     := rtl/operators
-CPP_DIR     := hal
+SIM_DIR     := hw_sim
+HAL_DIR     := hal
 SHM_DIR     := common/shm
 CSRC_DIR    := csrc
 PY_PKG_DIR  := python/aisrt
@@ -67,15 +68,17 @@ VFLAGS := --cc --exe --build -j 0 -Wall --trace \
 #  4. SOURCE FILES & DYNAMIC EXTENSIONS
 #     Tracks all source dependencies and dynamically resolves Python extensions.
 # ==============================================================================
-# --- Hardware & HAL Sources ---
+# --- Hardware Simulator (Server) Sources ---
 RTL_SRCS     := $(RTL_DIR)/$(MODULE).sv
-HAL_CPP_SRCS := $(wildcard $(CPP_DIR)/*.cpp) $(wildcard $(CPP_DIR)/operators/*.cpp) $(wildcard $(SHM_DIR)/*.cpp)
+SIM_CPP_SRCS := $(wildcard $(SIM_DIR)/*.cpp) $(wildcard $(SIM_DIR)/operators/*.cpp) $(wildcard $(SHM_DIR)/*.cpp)
 
-# --- Python Runtime Sources ---
+# --- Python Runtime (Client) Sources ---
 RUNTIME_SRCS := setup.py \
-                $(wildcard $(CSRC_DIR)/verilog/*.cpp) \
-                $(wildcard $(CSRC_DIR)/verilog/*.hpp) \
+                $(wildcard $(CSRC_DIR)/device/*.cpp) \
+                $(wildcard $(CSRC_DIR)/device/*/*.cpp) \
                 $(wildcard $(CSRC_DIR)/cpu/*.cpp) \
+                $(wildcard $(HAL_DIR)/*.cpp) \
+                $(wildcard $(HAL_DIR)/*/*.cpp) \
                 $(wildcard $(SHM_DIR)/*.cpp) \
                 $(wildcard $(SHM_DIR)/*.hpp)
 
@@ -84,18 +87,18 @@ PY_EXT_SUFFIX := $(shell python3 -c "import sysconfig; print(sysconfig.get_confi
 RTL_SO        := $(PY_PKG_DIR)/backends/aisrt_rtl$(PY_EXT_SUFFIX)
 CPU_SO        := $(PY_PKG_DIR)/backends/aisrt_cpu$(PY_EXT_SUFFIX)
 
-.PHONY: all hal runtime format clean test compdb
+.PHONY: all sim runtime format clean test compdb
 
-all: hal runtime
+all: sim runtime
 
 # ==========================================
-# Target: Build HAL (Server)
+# Target: Build Hardware Simulator (Server)
 # ==========================================
-hal:
-	@echo "--- [HAL] Building HAL Server (Verilator) ---"
+sim:
+	@echo "--- [SIM] Building Hardware Simulator (Verilator) ---"
 	@mkdir -p $(BUILD_DIR)
-	verilator $(VFLAGS) $(RTL_SRCS) $(HAL_CPP_SRCS)
-	@echo "HAL Build Complete: $(OBJ_DIR)/V$(MODULE)"
+	verilator $(VFLAGS) $(RTL_SRCS) $(SIM_CPP_SRCS)
+	@echo "Simulator Build Complete: $(OBJ_DIR)/V$(MODULE)"
 
 # ==========================================
 # Target: Build Python Runtime (Client)
@@ -113,17 +116,17 @@ TEST_TIMEOUT ?= 15s
 test: all
 	@echo "--- Starting Integration Test ---"
 	@mkdir -p $(BUILD_DIR)
-	@echo "1. Starting HAL Server in background..."
-	@./$(OBJ_DIR)/V$(MODULE) & echo $$! > $(BUILD_DIR)/hal.pid
+	@echo "1. Starting Hardware Simulator Server in background..."
+	@./$(OBJ_DIR)/V$(MODULE) & echo $$! > $(BUILD_DIR)/sim.pid
 	@sleep 1
 	
 	@echo "2. Running Python Frontend Script (Timeout: $(TEST_TIMEOUT))..."
 	@timeout $(TEST_TIMEOUT) python3 examples/test_vadd.py \
-	|| (echo "Python Script Failed or Timed Out!" && kill `cat $(BUILD_DIR)/hal.pid` 2>/dev/null && rm -f $(BUILD_DIR)/hal.pid && exit 1)
+	|| (echo "Python Script Failed or Timed Out!" && kill `cat $(BUILD_DIR)/sim.pid` 2>/dev/null && rm -f $(BUILD_DIR)/sim.pid && exit 1)
 	
-	@echo "3. Shutting down HAL Server..."
-	@kill `cat $(BUILD_DIR)/hal.pid` 2>/dev/null || true
-	@rm -f $(BUILD_DIR)/hal.pid
+	@echo "3. Shutting down Simulator Server..."
+	@kill `cat $(BUILD_DIR)/sim.pid` 2>/dev/null || true
+	@rm -f $(BUILD_DIR)/sim.pid
 	@echo "--- Integration Test Complete ---"
 
 # ==========================================
