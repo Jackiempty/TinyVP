@@ -10,6 +10,7 @@ AllowShortCaseLabelsOnASingleLine: true
 AllowShortFunctionsOnASingleLine: true
 AllowShortIfStatementsOnASingleLine: true
 AllowShortLoopsOnASingleLine: true
+InsertNewlineAtEOF: true
 ColumnLimit: 120
 DerivePointerAlignment: false
 IndentWidth: 2

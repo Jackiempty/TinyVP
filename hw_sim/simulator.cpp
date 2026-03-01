@@ -1,6 +1,7 @@
 // hw_sim/simulator.cpp
 #include <verilated.h>
 
+#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <iostream>
@@ -58,7 +59,7 @@ int main(int argc, char** argv) {
 
       // Update status to running. Add compiler barrier to prevent instruction reordering
       cmd->status = CmdStatus::RUNNING;
-      asm volatile("" ::: "memory");
+      std::atomic_thread_fence(std::memory_order_release);
       HAL_DEBUG("Fetched Command Opcode: " << static_cast<uint32_t>(cmd->opcode) << ", Size: " << cmd->size);
 
       // --- DECODE & EXECUTE ---
@@ -100,7 +101,7 @@ int main(int argc, char** argv) {
 
       // --- WRITEBACK ---
       // Ensure all payload write operations are committed to memory before updating status to DONE
-      asm volatile("" ::: "memory");
+      std::atomic_thread_fence(std::memory_order_release);
       cmd->status = CmdStatus::DONE;
 
     } else {

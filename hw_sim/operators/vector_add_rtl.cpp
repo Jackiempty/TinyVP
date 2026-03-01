@@ -1,6 +1,12 @@
 // hw_sim/operators/vector_add_rtl.cpp
 #include "vector_add_rtl.hpp"
 
+#include <verilated.h>
+
+#include <iostream>
+
+#include "Vvector_add.h"
+
 VectorAddHAL::VectorAddHAL() {
   dut = new Vvector_add;
   reset();

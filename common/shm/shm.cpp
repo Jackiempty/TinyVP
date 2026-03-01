@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <iostream>
@@ -78,6 +79,7 @@ void SharedMemorySegment::wait_for_command_done(uint32_t cmd_index) {
     // Short sleep to avoid 100% CPU usage
     std::this_thread::sleep_for(std::chrono::microseconds(1));
   }
+  std::atomic_thread_fence(std::memory_order_acquire);
 }
 
 // ==========================================

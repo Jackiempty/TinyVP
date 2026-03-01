@@ -1,12 +1,7 @@
 // csrc/device/vadd/vadd.hpp
-#include <chrono>
-#include <cstring>
-#include <iostream>
-#include <stdexcept>
-#include <thread>
-#include <vector>
+#pragma once
 
-#include "common/shm/shm.hpp"
+#include <cstdint>
 
 /**
  * @brief Dispatches vector addition workloads to the RTL backend via shared memory.
