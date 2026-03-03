@@ -29,4 +29,11 @@ void vadd(const int32_t* vec_a, const int32_t* vec_b, int32_t* vec_c, uint32_t s
   // Step 5: Readback (Device to Host)
   // ==========================================
   dev->copy_from_device(vec_c, addr_c, byte_size);
+
+  // ==========================================
+  // Step 6: Free Memory
+  // ==========================================
+  dev->free(addr_a);
+  dev->free(addr_b);
+  dev->free(addr_c);
 }

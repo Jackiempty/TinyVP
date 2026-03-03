@@ -12,13 +12,19 @@ IpcDevice::IpcDevice() : shm_("aisrt_shm", false), head_(0), tail_(0) {}
 dev_addr_t IpcDevice::allocate(size_t size) {
   std::lock_guard<std::mutex> lock(alloc_mutex_);
 
+  const size_t TOTAL_BYTE_CAPACITY = PAYLOAD_CAPACITY * sizeof(shm_.layout->payload[0]);
+
   uint32_t align_mask   = 63;
   uint32_t aligned_size = (size + align_mask) & ~align_mask;
+
+  if (aligned_size > TOTAL_BYTE_CAPACITY) {
+    throw std::runtime_error("Allocation size exceeds total SHM payload capacity!");
+  }
 
   dev_addr_t assigned_addr = (dev_addr_t)-1;
 
   if (head_ >= tail_) {
-    uint32_t space_at_end = PAYLOAD_CAPACITY - head_;
+    uint32_t space_at_end = TOTAL_BYTE_CAPACITY - head_;
 
     if (aligned_size <= space_at_end) {
       assigned_addr = head_;
@@ -65,13 +71,17 @@ void IpcDevice::free(dev_addr_t addr) {
 }
 
 void IpcDevice::copy_to_device(dev_addr_t dst, const void* src, size_t size) {
-  if (dst + size > PAYLOAD_CAPACITY) { throw std::out_of_range("IPC copy_to_device: out of bounds"); }
-  std::memcpy(&shm_.layout->payload[dst], src, size);
+  const size_t TOTAL_BYTE_CAPACITY = PAYLOAD_CAPACITY * sizeof(shm_.layout->payload[0]);
+  if (dst + size > TOTAL_BYTE_CAPACITY) { throw std::out_of_range("IPC copy_to_device: out of bounds"); }
+  uint8_t* base_ptr = reinterpret_cast<uint8_t*>(shm_.layout->payload);
+  std::memcpy(base_ptr + dst, src, size);
 }
 
 void IpcDevice::copy_from_device(void* dst, dev_addr_t src, size_t size) {
-  if (src + size > PAYLOAD_CAPACITY) { throw std::out_of_range("IPC copy_from_device: out of bounds"); }
-  std::memcpy(dst, &shm_.layout->payload[src], size);
+  const size_t TOTAL_BYTE_CAPACITY = PAYLOAD_CAPACITY * sizeof(shm_.layout->payload[0]);
+  if (src + size > TOTAL_BYTE_CAPACITY) { throw std::out_of_range("IPC copy_from_device: out of bounds"); }
+  uint8_t* base_ptr = reinterpret_cast<uint8_t*>(shm_.layout->payload);
+  std::memcpy(dst, base_ptr + src, size);
 }
 
 void IpcDevice::submit_vadd(dev_addr_t src1, dev_addr_t src2, dev_addr_t dst, uint32_t size) {

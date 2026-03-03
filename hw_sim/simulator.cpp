@@ -66,18 +66,24 @@ int main(int argc, char** argv) {
       switch (cmd->opcode) {
         case Opcode::VADD: {
           // Safety check: Check if offsets exceed Payload capacity
-          if (cmd->dst_offset + cmd->size > PAYLOAD_CAPACITY || cmd->src1_offset + cmd->size > PAYLOAD_CAPACITY) {
+          uint32_t element_count       = cmd->size;
+          uint32_t workload_bytes      = element_count * sizeof(int32_t);
+          uint32_t total_byte_capacity = PAYLOAD_CAPACITY * sizeof(shm.layout->payload[0]);
+          if (cmd->dst_offset + workload_bytes > total_byte_capacity ||
+              cmd->src1_offset + workload_bytes > total_byte_capacity ||
+              cmd->src2_offset + workload_bytes > total_byte_capacity) {
             std::cerr << "[SIM] ERROR: Memory boundary exceeded!" << std::endl;
             break;
           }
 
           // Decode Offsets into physical memory pointers
-          int32_t* a = &shm.layout->payload[cmd->src1_offset];
-          int32_t* b = &shm.layout->payload[cmd->src2_offset];
-          int32_t* c = &shm.layout->payload[cmd->dst_offset];
+          uint8_t* base_ptr = reinterpret_cast<uint8_t*>(shm.layout->payload);
+          int32_t* a        = reinterpret_cast<int32_t*>(base_ptr + cmd->src1_offset);
+          int32_t* b        = reinterpret_cast<int32_t*>(base_ptr + cmd->src2_offset);
+          int32_t* c        = reinterpret_cast<int32_t*>(base_ptr + cmd->dst_offset);
 
           // Drive hardware computation
-          vadd_module.compute(a, b, c, cmd->size);
+          vadd_module.compute(a, b, c, element_count);
           break;
         }
 
